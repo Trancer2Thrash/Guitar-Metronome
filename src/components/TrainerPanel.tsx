@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { QuietCountProgram } from '../training/quietCount'
+import type { QuietBars, QuietCountProgram } from '../training/quietCount'
 import type { TempoProgram } from '../training/tempoTrainer'
 import { validateTempoProgram } from '../training/tempoTrainer'
 import type { TrainerConfig } from '../domain/trainer'
@@ -12,6 +12,11 @@ interface TrainerPanelProps {
 function numeric(value: string, fallback = 1): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function asQuietRange(value: QuietBars): { min: number; max: number } {
+  if (typeof value !== 'number') return value
+  return { min: value, max: Math.min(128, value + 1) }
 }
 
 export function TrainerPanel({ value, onChange }: TrainerPanelProps) {
@@ -31,7 +36,9 @@ export function TrainerPanel({ value, onChange }: TrainerPanelProps) {
   })
   const tempoError = validateTempoProgram(config.tempoProgram)
   const direction = config.tempoProgram.targetBpm > config.tempoProgram.startBpm ? '+' : '−'
-  const repetitions = config.tempoProgram.repetitions === 'infinite' ? '无限循环' : `${config.tempoProgram.repetitions} 次`
+  const tempoRepetitions = config.tempoProgram.repetitions === 'infinite' ? '无限循环' : `${config.tempoProgram.repetitions} 次`
+  const quietRange = asQuietRange(config.quietProgram.silentBars)
+  const quietRepetitions = config.quietProgram.repetitions === 'infinite' ? '无限循环' : `${config.quietProgram.repetitions} 次`
 
   return (
     <div className="trainer-panel">
@@ -61,21 +68,71 @@ export function TrainerPanel({ value, onChange }: TrainerPanelProps) {
               <option value="stop">停止</option><option value="hold">保持目标速度</option><option value="restart">回到起点</option><option value="reverse">反向往返</option>
             </select>
           </label>
-          <label>循环次数<input aria-label="速度训练循环次数" type="number" min="1" max="99" value={config.tempoProgram.repetitions === 'infinite' ? 1 : config.tempoProgram.repetitions} onChange={(event) => updateTempo({ repetitions: numeric(event.target.value) })} /></label>
+          <label className="check-row">
+            <input
+              aria-label="速度训练无限循环"
+              type="checkbox"
+              checked={config.tempoProgram.repetitions === 'infinite'}
+              onChange={(event) => updateTempo({ repetitions: event.target.checked ? 'infinite' : 3 })}
+            />
+            无限循环
+          </label>
+          {config.tempoProgram.repetitions !== 'infinite' && (
+            <label>循环次数<input aria-label="速度训练循环次数" type="number" min="1" max="99" value={config.tempoProgram.repetitions} onChange={(event) => updateTempo({ repetitions: numeric(event.target.value) })} /></label>
+          )}
           {tempoError ? <p className="form-error" role="alert">{tempoError}</p> : (
-            <p className="trainer-summary">{config.tempoProgram.startBpm} → {config.tempoProgram.targetBpm} BPM，每 {config.tempoProgram.changeEveryBars} 小节 {direction}{config.tempoProgram.stepBpm}，{repetitions}</p>
+            <p className="trainer-summary">{config.tempoProgram.startBpm} → {config.tempoProgram.targetBpm} BPM，每 {config.tempoProgram.changeEveryBars} 小节 {direction}{config.tempoProgram.stepBpm}，{tempoRepetitions}</p>
           )}
         </div>
       )}
 
       {config.mode === 'quiet' && (
         <div className="form-stack">
+          <label>静音模式
+            <select
+              aria-label="静音模式"
+              value={typeof config.quietProgram.silentBars === 'number' ? 'fixed' : 'random'}
+              onChange={(event) => updateQuiet({
+                silentBars: event.target.value === 'random'
+                  ? asQuietRange(config.quietProgram.silentBars)
+                  : quietRange.min,
+              })}
+            >
+              <option value="fixed">固定小节数</option>
+              <option value="random">随机范围</option>
+            </select>
+          </label>
           <div className="field-grid field-grid--2">
             <label>有声小节<input aria-label="有声小节" type="number" min="1" max="128" value={config.quietProgram.audibleBars} onChange={(event) => updateQuiet({ audibleBars: numeric(event.target.value) })} /></label>
-            <label>静音小节<input aria-label="静音小节" type="number" min="1" max="128" value={typeof config.quietProgram.silentBars === 'number' ? config.quietProgram.silentBars : config.quietProgram.silentBars.min} onChange={(event) => updateQuiet({ silentBars: numeric(event.target.value) })} /></label>
+            {typeof config.quietProgram.silentBars === 'number' ? (
+              <label>静音小节<input aria-label="静音小节" type="number" min="1" max="128" value={config.quietProgram.silentBars} onChange={(event) => updateQuiet({ silentBars: numeric(event.target.value) })} /></label>
+            ) : (
+              <>
+                <label>最少静音<input aria-label="最少静音小节" type="number" min="1" max={quietRange.max} value={quietRange.min} onChange={(event) => {
+                  const min = numeric(event.target.value)
+                  updateQuiet({ silentBars: { min, max: quietRange.max } })
+                }} /></label>
+                <label>最多静音<input aria-label="最多静音小节" type="number" min={quietRange.min} max="128" value={quietRange.max} onChange={(event) => {
+                  const max = numeric(event.target.value)
+                  updateQuiet({ silentBars: { min: quietRange.min, max } })
+                }} /></label>
+              </>
+            )}
           </div>
+          <label className="check-row">
+            <input
+              aria-label="Quiet Count 无限循环"
+              type="checkbox"
+              checked={config.quietProgram.repetitions === 'infinite'}
+              onChange={(event) => updateQuiet({ repetitions: event.target.checked ? 'infinite' : 3 })}
+            />
+            无限循环
+          </label>
+          {config.quietProgram.repetitions !== 'infinite' && (
+            <label>循环次数<input aria-label="Quiet Count 循环次数" type="number" min="1" max="99" value={config.quietProgram.repetitions} onChange={(event) => updateQuiet({ repetitions: numeric(event.target.value) })} /></label>
+          )}
           <label className="check-row"><input type="checkbox" checked={config.quietProgram.hideVisuals} onChange={(event) => updateQuiet({ hideVisuals: event.target.checked })} />静音阶段同时隐藏拍点提示</label>
-          <p className="trainer-summary">{config.quietProgram.audibleBars} 小节有声 + {typeof config.quietProgram.silentBars === 'number' ? config.quietProgram.silentBars : `${config.quietProgram.silentBars.min}–${config.quietProgram.silentBars.max}`} 小节静音，训练内在拍感。</p>
+          <p className="trainer-summary">{config.quietProgram.audibleBars} 小节有声 + {typeof config.quietProgram.silentBars === 'number' ? config.quietProgram.silentBars : `${quietRange.min}–${quietRange.max}`} 小节静音，{quietRepetitions}，训练内在拍感。</p>
         </div>
       )}
 
@@ -87,5 +144,3 @@ export function TrainerPanel({ value, onChange }: TrainerPanelProps) {
     </div>
   )
 }
-
-

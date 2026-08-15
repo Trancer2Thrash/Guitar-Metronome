@@ -360,3 +360,16 @@
   .focus-mode__transport label { width: 100%; }
   .focus-mode__transport > span { display: none; }
 }
+
+.tempo-term { margin-top: 5px !important; color: var(--copper) !important; font-size: 10px !important; font-weight: 750; letter-spacing: .08em !important; }
+.accent-editor__heading { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.accent-editor__heading button { border: 0; border-bottom: 1px solid var(--line-strong); padding: 4px 0; background: transparent; color: var(--ink-soft); font-size: 10px; }
+.focus-mode .beat-node { --node-size: clamp(54px, 8vw, 92px); min-height: clamp(92px, 18vh, 150px); border-radius: 12px; }
+.focus-mode .beat-node.is-active { background: var(--copper-dark); border-color: var(--copper-dark); transform: translateY(-8px) scale(1.03); }
+
+@media (prefers-color-scheme: dark) {
+  .app-shell { background: linear-gradient(90deg, transparent 0 7%, rgb(255 255 255 / 3%) 7% 7.15%, transparent 7.15% 92.85%, rgb(255 255 255 / 3%) 92.85% 93%, transparent 93%), var(--paper); }
+  .icon-button:hover, .quick-settings button:hover { background: rgb(255 255 255 / 5%); }
+  .transport-dock { background: color-mix(in srgb, var(--paper), transparent 4%); }
+  .settings-sheet, .focus-mode { background: var(--paper); }
+}

@@ -58,3 +58,12 @@ test('has no page-level overflow at tablet and desktop sizes', async ({ page }) 
     expect(dimensions.scrollWidth, `${viewport.width} px viewport overflowed`).toBeLessThanOrEqual(dimensions.clientWidth)
   }
 })
+
+test('uses the dark palette when the system requests dark mode', async ({ browser }) => {
+  const context = await browser.newContext({ colorScheme: 'dark' })
+  const page = await context.newPage()
+  await page.goto('/')
+  const background = await page.locator('body').evaluate((element) => getComputedStyle(element).backgroundColor)
+  expect(background).toBe('rgb(30, 35, 32)')
+  await context.close()
+})

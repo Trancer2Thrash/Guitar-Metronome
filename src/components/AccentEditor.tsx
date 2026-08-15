@@ -1,5 +1,5 @@
 import type { BeatAccent, Meter } from '../domain/metronome'
-import { cycleAccent } from '../rhythm/meter'
+import { cycleAccent, defaultAccents } from '../rhythm/meter'
 
 const LABELS: Record<BeatAccent, string> = {
   strong: '强拍',
@@ -14,9 +14,16 @@ interface AccentEditorProps {
 }
 
 export function AccentEditor({ meter, onAccentChange }: AccentEditorProps) {
+  const restoreDefaults = () => {
+    defaultAccents(meter).forEach((accent, index) => onAccentChange(index, accent))
+  }
+
   return (
     <fieldset className="accent-editor">
-      <legend>逐拍强弱</legend>
+      <legend className="accent-editor__heading">
+        <span>逐拍强弱</span>
+        <button type="button" onClick={restoreDefaults}>恢复推荐重音</button>
+      </legend>
       <p>点击拍点循环切换：强 → 次强 → 弱 → 静音。</p>
       <div className="accent-editor__grid">
         {meter.accents.map((accent, index) => (

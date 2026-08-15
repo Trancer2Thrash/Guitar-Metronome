@@ -6,6 +6,15 @@ interface TempoControlsProps {
   onTap(): void
 }
 
+function tempoTerm(bpm: number): string {
+  if (bpm < 60) return 'Largo · 广板'
+  if (bpm < 76) return 'Adagio · 柔板'
+  if (bpm < 108) return 'Andante · 行板'
+  if (bpm < 120) return 'Moderato · 中板'
+  if (bpm < 168) return 'Allegro · 快板'
+  return 'Presto · 急板'
+}
+
 function TempoStep({ amount, onStep }: { amount: number; onStep(amount: number): void }) {
   const direction = amount > 0 ? '提高' : '降低'
   const magnitude = Math.abs(amount)
@@ -56,6 +65,7 @@ export function TempoControls({ bpm, onBpmChange, onTap }: TempoControlsProps) {
             onBlur={() => setEditing(false)}
           />
           <span>BPM</span>
+          <output className="tempo-term" aria-live="polite">{tempoTerm(bpm)}</output>
         </label>
         <TempoStep amount={1} onStep={(amount) => update(bpm + amount)} />
         <TempoStep amount={5} onStep={(amount) => update(bpm + amount)} />

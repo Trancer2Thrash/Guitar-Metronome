@@ -25,4 +25,9 @@ describe('TempoControls', () => {
     await user.click(screen.getByRole('button', { name: 'Tap Tempo' }))
     expect(onTap).toHaveBeenCalledTimes(1)
   })
+
+  it('shows the conventional tempo term for the current BPM', () => {
+    render(<TempoControls bpm={96} onBpmChange={vi.fn()} onTap={vi.fn()} />)
+    expect(screen.getByText('Andante · 行板')).toBeInTheDocument()
+  })
 })

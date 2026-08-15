@@ -49,7 +49,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                 <div className="field-grid field-grid--2">
                   <label>拍号分子
                     <select aria-label="拍号分子" value={settings.meter.numerator} onChange={(event) => props.onMeterChange(Number(event.target.value), settings.meter.denominator)}>
-                      {Array.from({ length: 12 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
+                      {Array.from({ length: 16 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
                     </select>
                   </label>
                   <label>拍号分母
