@@ -9,9 +9,24 @@ import {
   type MetronomeSettings,
   type Subdivision,
 } from '../domain/metronome'
+import { DEFAULT_TRAINER_CONFIG, type TrainerConfig } from '../domain/trainer'
 import { clampBpm, createMeter, cycleAccent as nextAccent } from '../rhythm/meter'
 import { TapTempoTracker } from '../rhythm/tapTempo'
 import { createPresetStore, type PresetStore } from '../storage/presetStore'
+import {
+  advanceQuietCount,
+  createQuietCountSession,
+  pauseQuietCount,
+  resumeQuietCount,
+  type QuietCountSession,
+} from '../training/quietCount'
+import {
+  advanceTempoStage,
+  createTempoSession,
+  pauseTempoSession,
+  resumeTempoSession,
+  type TempoSession,
+} from '../training/tempoTrainer'
 
 export type TransportStatus = 'stopped' | 'playing' | 'paused'
 
@@ -88,7 +103,11 @@ class BrowserMetronomeEngine implements MetronomeEngine {
   }
 
   private startTicker(): void {
-    if (this.worker || this.fallbackTimer !== null) return
+    if (this.fallbackTimer !== null) return
+    if (this.worker) {
+      this.worker.postMessage({ type: 'start', intervalMs: 25 })
+      return
+    }
     if (typeof Worker !== 'undefined') {
       this.worker = new Worker(new URL('../audio/scheduler.worker.ts', import.meta.url), { type: 'module' })
       this.worker.addEventListener('message', () => this.scheduler.tick())
@@ -146,6 +165,19 @@ function reducer(state: ControllerState, action: ControllerAction): ControllerSt
   }
 }
 
+function mutedSettings(settings: MetronomeSettings): MetronomeSettings {
+  return {
+    ...settings,
+    meter: { ...settings.meter, accents: settings.meter.accents.map(() => 'mute' as const) },
+  }
+}
+
+function practiceLabel(trainer: TrainerConfig, tempoSession: TempoSession | null, quietSession: QuietCountSession | null): string {
+  if (trainer.mode === 'tempo') return `速度训练 · ${tempoSession?.currentBpm ?? trainer.tempoProgram.startBpm} BPM`
+  if (trainer.mode === 'quiet') return quietSession?.phase === 'silent' ? 'Quiet Count · 静音' : 'Quiet Count · 有声'
+  return '自由练习'
+}
+
 const createDefaultEngine = () => new BrowserMetronomeEngine()
 const defaultNowMs = () => performance.now()
 
@@ -167,25 +199,55 @@ export function useMetronome({
     settings: store.loadLastSettings(),
     runtime: initialRuntime,
   }))
+  const [trainer, setTrainer] = useState<TrainerConfig>(DEFAULT_TRAINER_CONFIG)
+  const [phaseLabel, setPhaseLabel] = useState('自由练习')
+  const [hideVisuals, setHideVisuals] = useState(false)
   const startedAtRef = useRef(0)
   const accumulatedMsRef = useRef(0)
+  const lastCompletedBarsRef = useRef(0)
+  const tempoSessionRef = useRef<TempoSession | null>(null)
+  const quietSessionRef = useRef<QuietCountSession | null>(null)
+
+  function settingsForEngine(settings: MetronomeSettings): MetronomeSettings {
+    return quietSessionRef.current?.phase === 'silent' ? mutedSettings(settings) : settings
+  }
 
   function applySettings(settings: MetronomeSettings): void {
     dispatch({ type: 'settings', settings })
     store.saveLastSettings(settings)
-    engine.updateSettings(settings)
+    engine.updateSettings(settingsForEngine(settings))
+  }
+
+  function resetTrainingRuntime(): void {
+    lastCompletedBarsRef.current = 0
+    tempoSessionRef.current = null
+    quietSessionRef.current = null
+    setHideVisuals(false)
   }
 
   async function play(): Promise<void> {
-    const activeEngine = engine
     if (state.runtime.status === 'playing') return
     try {
-      if (state.runtime.status === 'paused') await activeEngine.resume()
-      else {
+      if (state.runtime.status === 'paused') {
+        if (tempoSessionRef.current) tempoSessionRef.current = resumeTempoSession(tempoSessionRef.current)
+        if (quietSessionRef.current) quietSessionRef.current = resumeQuietCount(quietSessionRef.current)
+        await engine.resume()
+      } else {
         accumulatedMsRef.current = 0
-        await activeEngine.start(state.settings)
+        lastCompletedBarsRef.current = 0
+        tempoSessionRef.current = trainer.mode === 'tempo' ? createTempoSession(trainer.tempoProgram) : null
+        quietSessionRef.current = trainer.mode === 'quiet' ? createQuietCountSession(trainer.quietProgram) : null
+
+        let startingSettings = state.settings
+        if (tempoSessionRef.current) {
+          startingSettings = { ...state.settings, bpm: tempoSessionRef.current.currentBpm }
+          dispatch({ type: 'settings', settings: startingSettings })
+          store.saveLastSettings(startingSettings)
+        }
+        await engine.start(settingsForEngine(startingSettings))
       }
       startedAtRef.current = nowMs()
+      setPhaseLabel(state.settings.countInBars > 0 ? `预备拍 1/${state.settings.countInBars}` : practiceLabel(trainer, tempoSessionRef.current, quietSessionRef.current))
       dispatch({ type: 'status', status: 'playing' })
     } catch (error) {
       dispatch({ type: 'status', status: 'stopped', error: error instanceof Error ? error.message : '无法启动音频。' })
@@ -195,6 +257,8 @@ export function useMetronome({
   async function pause(): Promise<void> {
     if (state.runtime.status !== 'playing') return
     accumulatedMsRef.current += nowMs() - startedAtRef.current
+    if (tempoSessionRef.current) tempoSessionRef.current = pauseTempoSession(tempoSessionRef.current)
+    if (quietSessionRef.current) quietSessionRef.current = pauseQuietCount(quietSessionRef.current)
     await engine.pause()
     dispatch({ type: 'status', status: 'paused' })
   }
@@ -202,6 +266,8 @@ export function useMetronome({
   function stop(): void {
     engine.stop()
     accumulatedMsRef.current = 0
+    resetTrainingRuntime()
+    setPhaseLabel(trainer.mode === 'off' ? '自由练习' : '练习已结束')
     dispatch({ type: 'reset' })
   }
 
@@ -249,6 +315,16 @@ export function useMetronome({
     applySettings({ ...state.settings, countInBars })
   }
 
+  function setTrainerConfig(config: TrainerConfig): void {
+    if (state.runtime.status !== 'stopped') stop()
+    setTrainer(config)
+    setPhaseLabel(config.mode === 'off' ? '自由练习' : config.mode === 'tempo' ? '速度训练 · 待开始' : 'Quiet Count · 待开始')
+  }
+
+  function loadSettings(settings: MetronomeSettings): void {
+    applySettings(settings)
+  }
+
   useEffect(() => {
     if (state.runtime.status !== 'playing') return
     const requestFrame = window.requestAnimationFrame
@@ -262,13 +338,60 @@ export function useMetronome({
     const update = () => {
       const events = engine.drainVisualEvents() ?? []
       const latest = events.at(-1)
-      const elapsedSeconds = (accumulatedMsRef.current + nowMs() - startedAtRef.current) / 1000
+      const rawElapsedSeconds = (accumulatedMsRef.current + nowMs() - startedAtRef.current) / 1000
+      const countInSeconds = state.settings.countInBars * state.settings.meter.numerator * (60 / state.settings.bpm)
+      const elapsedSeconds = Math.max(0, rawElapsedSeconds - countInSeconds)
+
+      if (latest) {
+        if (latest.barNumber <= state.settings.countInBars) {
+          setPhaseLabel(`预备拍 ${latest.barNumber}/${state.settings.countInBars}`)
+          setHideVisuals(false)
+        } else {
+          const completedBars = Math.max(0, latest.barNumber - state.settings.countInBars - 1)
+          if (completedBars > lastCompletedBarsRef.current) {
+            lastCompletedBarsRef.current = completedBars
+
+            if (tempoSessionRef.current) {
+              const next = advanceTempoStage(tempoSessionRef.current, completedBars)
+              const bpmChanged = next.currentBpm !== tempoSessionRef.current.currentBpm
+              tempoSessionRef.current = next
+              if (bpmChanged) applySettings({ ...state.settings, bpm: next.currentBpm })
+              if (next.status === 'completed') {
+                stop()
+                return
+              }
+            }
+
+            if (quietSessionRef.current) {
+              const previousPhase = quietSessionRef.current.phase
+              const next = advanceQuietCount(quietSessionRef.current, completedBars)
+              quietSessionRef.current = next
+              if (next.phase !== previousPhase) engine.updateSettings(settingsForEngine(state.settings))
+              if (next.phase === 'completed') {
+                stop()
+                return
+              }
+            }
+          }
+
+          setPhaseLabel(practiceLabel(trainer, tempoSessionRef.current, quietSessionRef.current))
+          setHideVisuals(quietSessionRef.current?.phase === 'silent' && trainer.quietProgram.hideVisuals)
+        }
+      }
+
+      if (trainer.sessionMinutes > 0 && elapsedSeconds >= trainer.sessionMinutes * 60) {
+        stop()
+        return
+      }
+
       dispatch({ type: 'visual', event: latest, elapsedSeconds })
       frame = requestFrame(update)
     }
     frame = requestFrame(update)
     return () => cancelFrame(frame)
-  }, [engine, nowMs, state.runtime.status])
+  // The frame loop is intentionally recreated when its state snapshot changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine, nowMs, state.runtime.status, state.settings, trainer])
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -304,6 +427,9 @@ export function useMetronome({
   return {
     settings: state.settings,
     runtime: state.runtime,
+    trainer,
+    phaseLabel,
+    hideVisuals,
     store,
     actions: {
       play,
@@ -318,6 +444,8 @@ export function useMetronome({
       setSound,
       setVolume,
       setCountInBars,
+      setTrainerConfig,
+      loadSettings,
     },
   }
 }

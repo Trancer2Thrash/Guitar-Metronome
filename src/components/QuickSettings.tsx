@@ -1,4 +1,5 @@
 import type { MetronomeSettings } from '../domain/metronome'
+import type { TrainerMode } from '../domain/trainer'
 
 const SUBDIVISION_LABEL: Record<MetronomeSettings['subdivision'], string> = {
   quarter: '四分音符',
@@ -16,10 +17,11 @@ const SOUND_LABEL: Record<MetronomeSettings['sound'], string> = {
 
 interface QuickSettingsProps {
   settings: MetronomeSettings
+  trainerMode?: TrainerMode
   onOpen(tab: 'rhythm' | 'sound' | 'training'): void
 }
 
-export function QuickSettings({ settings, onOpen }: QuickSettingsProps) {
+export function QuickSettings({ settings, trainerMode = 'off', onOpen }: QuickSettingsProps) {
   return (
     <nav className="quick-settings" aria-label="快速设置">
       <button type="button" onClick={() => onOpen('rhythm')} aria-label={`拍号 ${settings.meter.numerator}/${settings.meter.denominator}`}>
@@ -36,7 +38,7 @@ export function QuickSettings({ settings, onOpen }: QuickSettingsProps) {
       </button>
       <button type="button" onClick={() => onOpen('training')}>
         <span className="quick-settings__label">训练</span>
-        <strong>关闭</strong>
+        <strong>{trainerMode === 'tempo' ? '速度训练' : trainerMode === 'quiet' ? 'Quiet Count' : '关闭'}</strong>
       </button>
     </nav>
   )

@@ -54,3 +54,30 @@ describe('useMetronome', () => {
     expect(result.current.settings.meter.accents).toHaveLength(3)
   })
 })
+
+  it('starts tempo training from the configured start BPM', async () => {
+    const engine = fakeEngine()
+    const { result } = renderHook(() => useMetronome({ engineFactory: () => engine }))
+
+    act(() => result.current.actions.setTrainerConfig({
+      ...result.current.trainer,
+      mode: 'tempo',
+      tempoProgram: { ...result.current.trainer.tempoProgram, startBpm: 72, targetBpm: 90 },
+    }))
+    await act(async () => { await result.current.actions.play() })
+
+    expect(engine.start).toHaveBeenCalledWith(expect.objectContaining({ bpm: 72 }))
+    expect(result.current.settings.bpm).toBe(72)
+    expect(result.current.phaseLabel).toContain('速度训练')
+  })
+
+  it('loads all settings from a preset through one controller action', () => {
+    const engine = fakeEngine()
+    const { result } = renderHook(() => useMetronome({ engineFactory: () => engine }))
+    const loaded = { ...DEFAULT_SETTINGS, bpm: 144, subdivision: 'eighth' as const }
+
+    act(() => result.current.actions.loadSettings(loaded))
+
+    expect(result.current.settings).toEqual(loaded)
+    expect(engine.updateSettings).toHaveBeenLastCalledWith(loaded)
+  })

@@ -1,10 +1,16 @@
 import { useState } from 'react'
+import { FocusMode } from './components/FocusMode'
+import { PresetPanel } from './components/PresetPanel'
 import { QuickSettings } from './components/QuickSettings'
+import { SettingsSheet, type SettingsTab } from './components/SettingsSheet'
 import { StringPulse } from './components/StringPulse'
 import { TempoControls } from './components/TempoControls'
+import { TrainerPanel } from './components/TrainerPanel'
 import { TransportButton } from './components/TransportButton'
+import type { TrainerConfig } from './domain/trainer'
 import { useMetronome } from './hooks/useMetronome'
 import { useWakeLock } from './hooks/useWakeLock'
+import type { Preset } from './storage/presetSchema'
 
 function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60).toString().padStart(2, '0')
@@ -15,7 +21,26 @@ function formatDuration(seconds: number): string {
 export default function App() {
   const metronome = useMetronome()
   const wakeLock = useWakeLock(metronome.runtime.status === 'playing')
-  const [, setRequestedTab] = useState<'rhythm' | 'sound' | 'training'>('rhythm')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<SettingsTab>('rhythm')
+  const [focusOpen, setFocusOpen] = useState(false)
+
+  const openSettings = (tab: SettingsTab) => {
+    setActiveTab(tab)
+    setSettingsOpen(true)
+  }
+
+  const loadPreset = (preset: Preset) => {
+    metronome.actions.loadSettings(preset.settings)
+    const trainer: TrainerConfig = {
+      ...metronome.trainer,
+      mode: preset.kind === 'tempo' ? 'tempo' : preset.kind === 'quiet' ? 'quiet' : 'off',
+      ...(preset.tempoProgram ? { tempoProgram: preset.tempoProgram } : {}),
+      ...(preset.quietProgram ? { quietProgram: preset.quietProgram } : {}),
+    }
+    metronome.actions.setTrainerConfig(trainer)
+    setSettingsOpen(false)
+  }
 
   return (
     <div className="app-shell">
@@ -28,10 +53,10 @@ export default function App() {
           </span>
         </div>
         <div className="header-actions">
-          <button className="icon-button" type="button" aria-label="进入专注模式">
+          <button className="icon-button" type="button" aria-label="进入专注模式" onClick={() => setFocusOpen(true)}>
             <span aria-hidden="true">⌗</span><span className="icon-button__label">专注</span>
           </button>
-          <button className="icon-button" type="button" aria-label="打开设置">
+          <button className="icon-button" type="button" aria-label="打开设置" onClick={() => openSettings('rhythm')}>
             <span aria-hidden="true">☷</span><span className="icon-button__label">设置</span>
           </button>
         </div>
@@ -51,20 +76,13 @@ export default function App() {
         </div>
 
         {metronome.runtime.error && <div className="error-banner" role="alert">{metronome.runtime.error}</div>}
+        <div className="practice-phase" aria-live="polite">{metronome.phaseLabel}</div>
 
-        <StringPulse
-          meter={metronome.settings.meter}
-          activeBeat={metronome.runtime.beatIndex}
-          hideVisuals={false}
-        />
+        <StringPulse meter={metronome.settings.meter} activeBeat={metronome.runtime.beatIndex} hideVisuals={metronome.hideVisuals} />
 
-        <TempoControls
-          bpm={metronome.settings.bpm}
-          onBpmChange={metronome.actions.setBpm}
-          onTap={() => metronome.actions.tap()}
-        />
+        <TempoControls bpm={metronome.settings.bpm} onBpmChange={metronome.actions.setBpm} onTap={() => metronome.actions.tap()} />
 
-        <QuickSettings settings={metronome.settings} onOpen={setRequestedTab} />
+        <QuickSettings settings={metronome.settings} trainerMode={metronome.trainer.mode} onOpen={(tab) => openSettings(tab)} />
       </main>
 
       <footer className="transport-dock">
@@ -72,16 +90,40 @@ export default function App() {
           <strong>{formatDuration(metronome.runtime.elapsedSeconds)}</strong>
           本次练习 · {wakeLock === 'active' ? '屏幕常亮' : '本地运行'}
         </div>
-        <TransportButton
-          status={metronome.runtime.status}
-          onPlay={metronome.actions.play}
-          onPause={metronome.actions.pause}
-        />
+        <TransportButton status={metronome.runtime.status} onPlay={metronome.actions.play} onPause={metronome.actions.pause} />
         <div className="transport-meta transport-meta--right">
           <strong>{metronome.settings.meter.numerator}/{metronome.settings.meter.denominator}</strong>
           空格播放 · T 键测速
         </div>
       </footer>
+
+      <SettingsSheet
+        open={settingsOpen}
+        activeTab={activeTab}
+        settings={metronome.settings}
+        onClose={() => setSettingsOpen(false)}
+        onTabChange={setActiveTab}
+        onMeterChange={metronome.actions.setMeter}
+        onSubdivisionChange={metronome.actions.setSubdivision}
+        onAccentChange={metronome.actions.setAccent}
+        onSoundChange={metronome.actions.setSound}
+        onVolumeChange={metronome.actions.setVolume}
+        onCountInChange={metronome.actions.setCountInBars}
+        trainerContent={<TrainerPanel key={JSON.stringify(metronome.trainer)} value={metronome.trainer} onChange={metronome.actions.setTrainerConfig} />}
+        presetContent={<PresetPanel store={metronome.store} settings={metronome.settings} trainer={metronome.trainer} onLoad={loadPreset} />}
+      />
+
+      <FocusMode
+        open={focusOpen}
+        settings={metronome.settings}
+        runtime={metronome.runtime}
+        hideVisuals={metronome.hideVisuals}
+        phaseLabel={metronome.phaseLabel}
+        onExit={() => setFocusOpen(false)}
+        onPlay={metronome.actions.play}
+        onPause={metronome.actions.pause}
+        onVolumeChange={metronome.actions.setVolume}
+      />
     </div>
   )
 }
