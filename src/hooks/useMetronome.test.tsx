@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
+import { StrictMode, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../domain/metronome'
 import type { MetronomeEngine } from './useMetronome'
@@ -52,6 +53,21 @@ describe('useMetronome', () => {
 
     act(() => result.current.actions.setMeter(3, 4))
     expect(result.current.settings.meter.accents).toHaveLength(3)
+  })
+  it('does not dispose the browser engine during StrictMode effect replay', async () => {
+    let disposed = false
+    const engine = fakeEngine()
+    vi.mocked(engine.dispose).mockImplementation(async () => { disposed = true })
+    vi.mocked(engine.start).mockImplementation(async () => {
+      if (disposed) throw new Error('音频引擎已经释放。')
+    })
+    const wrapper = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>
+    const { result } = renderHook(() => useMetronome({ engineFactory: () => engine }), { wrapper })
+
+    await act(async () => { await result.current.actions.play() })
+
+    expect(result.current.runtime.status).toBe('playing')
+    expect(result.current.runtime.error).toBeNull()
   })
 })
 

@@ -207,6 +207,7 @@ export function useMetronome({
   const lastCompletedBarsRef = useRef(0)
   const tempoSessionRef = useRef<TempoSession | null>(null)
   const quietSessionRef = useRef<QuietCountSession | null>(null)
+  const engineLifecycleRef = useRef(0)
 
   function settingsForEngine(settings: MetronomeSettings): MetronomeSettings {
     return quietSessionRef.current?.phase === 'silent' ? mutedSettings(settings) : settings
@@ -422,7 +423,16 @@ export function useMetronome({
     return () => window.removeEventListener('keydown', handleKeyDown)
   })
 
-  useEffect(() => () => { void engine.dispose() }, [engine])
+  useEffect(() => {
+    const lifecycle = ++engineLifecycleRef.current
+    return () => {
+      queueMicrotask(() => {
+        // StrictMode replays effects immediately; only the final lifecycle owns disposal.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (engineLifecycleRef.current === lifecycle) void engine.dispose()
+      })
+    }
+  }, [engine])
 
   return {
     settings: state.settings,
