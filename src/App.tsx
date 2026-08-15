@@ -1,21 +1,87 @@
+import { useState } from 'react'
+import { QuickSettings } from './components/QuickSettings'
+import { StringPulse } from './components/StringPulse'
+import { TempoControls } from './components/TempoControls'
 import { TransportButton } from './components/TransportButton'
 import { useMetronome } from './hooks/useMetronome'
 import { useWakeLock } from './hooks/useWakeLock'
 
+function formatDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, '0')
+  const remainder = Math.floor(seconds % 60).toString().padStart(2, '0')
+  return `${minutes}:${remainder}`
+}
+
 export default function App() {
   const metronome = useMetronome()
   const wakeLock = useWakeLock(metronome.runtime.status === 'playing')
+  const [, setRequestedTab] = useState<'rhythm' | 'sound' | 'training'>('rhythm')
 
   return (
-    <main>
-      <h1>六弦节拍器</h1>
-      <p>{metronome.settings.bpm} BPM · {metronome.settings.meter.numerator}/{metronome.settings.meter.denominator}</p>
-      <TransportButton
-        status={metronome.runtime.status}
-        onPlay={metronome.actions.play}
-        onPause={metronome.actions.pause}
-      />
-      <span className="sr-only" aria-live="polite">屏幕常亮：{wakeLock}</span>
-    </main>
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand__mark" aria-hidden="true">VI</span>
+          <span className="brand__copy">
+            <h1>六弦节拍器</h1>
+            <span>Six String Practice Lab</span>
+          </span>
+        </div>
+        <div className="header-actions">
+          <button className="icon-button" type="button" aria-label="进入专注模式">
+            <span aria-hidden="true">⌗</span><span className="icon-button__label">专注</span>
+          </button>
+          <button className="icon-button" type="button" aria-label="打开设置">
+            <span aria-hidden="true">☷</span><span className="icon-button__label">设置</span>
+          </button>
+        </div>
+      </header>
+
+      <main className="metronome-stage">
+        <div className="stage-heading">
+          <div>
+            <span className="stage-heading__index">01 / PULSE</span>
+            <h2>看见每一拍，听清每一次落点</h2>
+            <p>六根琴弦构成练习标尺，强弱拍在同一条时间线上推进。</p>
+          </div>
+          <div className="stage-heading__status">
+            当前小节
+            <strong>{metronome.runtime.barNumber.toString().padStart(2, '0')}</strong>
+          </div>
+        </div>
+
+        {metronome.runtime.error && <div className="error-banner" role="alert">{metronome.runtime.error}</div>}
+
+        <StringPulse
+          meter={metronome.settings.meter}
+          activeBeat={metronome.runtime.beatIndex}
+          hideVisuals={false}
+        />
+
+        <TempoControls
+          bpm={metronome.settings.bpm}
+          onBpmChange={metronome.actions.setBpm}
+          onTap={() => metronome.actions.tap()}
+        />
+
+        <QuickSettings settings={metronome.settings} onOpen={setRequestedTab} />
+      </main>
+
+      <footer className="transport-dock">
+        <div className="transport-meta">
+          <strong>{formatDuration(metronome.runtime.elapsedSeconds)}</strong>
+          本次练习 · {wakeLock === 'active' ? '屏幕常亮' : '本地运行'}
+        </div>
+        <TransportButton
+          status={metronome.runtime.status}
+          onPlay={metronome.actions.play}
+          onPause={metronome.actions.pause}
+        />
+        <div className="transport-meta transport-meta--right">
+          <strong>{metronome.settings.meter.numerator}/{metronome.settings.meter.denominator}</strong>
+          空格播放 · T 键测速
+        </div>
+      </footer>
+    </div>
   )
 }
