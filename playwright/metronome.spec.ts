@@ -192,8 +192,28 @@ test('opens the practice setlist and applies its start tempo and meter', async (
 test('switches chord voicings and configures chord-change training', async ({ page }) => {
   await page.getByRole('link', { name: /Chord/ }).click()
   await expect(page.locator('.voicing-tabs button')).toHaveCount(3)
+
+  const expectFretMarkersInsideDiagram = async () => {
+    const fit = await page.getByRole('img', { name: /和弦指板图/ }).evaluate((svg) => {
+      const diagram = svg.getBoundingClientRect()
+      const markers = [...svg.querySelectorAll('.fretboard__dot, .fretboard__barre')]
+      return markers.length > 0 && markers.every((marker) => {
+        const bounds = marker.getBoundingClientRect()
+        return bounds.top >= diagram.top && bounds.bottom <= diagram.bottom
+      })
+    })
+    expect(fit).toBe(true)
+  }
+
   await page.getByRole('button', { name: 'A 型 · 3 品', exact: true }).click()
   await expect(page.getByRole('button', { name: 'A 型 · 3 品', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.fretboard__base')).toHaveText('3fr')
+  await expectFretMarkersInsideDiagram()
+
+  await page.getByRole('button', { name: 'E 型 · 8 品', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'E 型 · 8 品', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.fretboard__base')).toHaveText('8fr')
+  await expectFretMarkersInsideDiagram()
 
   const trainer = page.locator('section[aria-label="和弦切换训练"]')
   await trainer.getByLabel('训练和弦 B').selectOption({ label: 'Am' })
@@ -229,3 +249,4 @@ test('keeps all expanded practice tools inside a 360px viewport', async ({ page 
   expect(tap).not.toBeNull()
   expect((tap?.x ?? 0) + (tap?.width ?? 0)).toBeLessThanOrEqual(360)
 })
+
