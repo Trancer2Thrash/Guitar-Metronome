@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('edits rhythm settings and restores them after reload', async ({ page }) => {
-  await expect(page.getByRole('heading', { name: '六弦节拍器' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '六弦练习室' })).toBeVisible()
   await page.getByRole('spinbutton', { name: 'BPM' }).fill('128')
   await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByLabel('拍号分子').selectOption('3')
@@ -66,4 +66,51 @@ test('uses the dark palette when the system requests dark mode', async ({ browse
   const background = await page.locator('body').evaluate((element) => getComputedStyle(element).backgroundColor)
   expect(background).toBe('rgb(30, 35, 32)')
   await context.close()
+})
+
+test('navigates to chord atlas and filters the catalog', async ({ page }) => {
+  await page.getByRole('link', { name: /Chord/ }).click()
+  await expect(page).toHaveURL(/#\/chords$/)
+  await expect(page.getByRole('heading', { name: /把和弦放在指尖/ })).toBeVisible()
+  await page.getByPlaceholder('例如 Cmaj7、F♯m').fill('Cmaj7')
+  await page.getByRole('button', { name: /Cmaj7/ }).click()
+  await expect(page.getByRole('img', { name: /Cmaj7 和弦指板图/ })).toBeVisible()
+  await page.getByRole('button', { name: '试听 Cmaj7 和弦' }).click()
+  await expect(page.getByRole('button', { name: '试听 Cmaj7 和弦' })).toContainText('正在扫弦')
+})
+
+test('edits and persists a jam loop on a phone viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 })
+  await page.getByRole('link', { name: /Jam Loop/ }).click()
+  await expect(page.getByRole('heading', { name: /留一段稳定的伴奏/ })).toBeVisible()
+  await page.getByRole('button', { name: '第 1 小节 C' }).click()
+  await page.getByRole('button', { name: 'Dm', exact: true }).click()
+  await page.getByRole('button', { name: '第 2 小节 G' }).click()
+  await page.getByRole('button', { name: '复制上一小节' }).click()
+  await page.getByRole('slider', { name: 'Jam 速度滑块' }).fill('120')
+  await expect(page.getByRole('spinbutton', { name: 'Jam BPM' })).toHaveValue('120')
+  await page.reload()
+  await expect(page.getByRole('button', { name: '第 1 小节 Dm' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '第 2 小节 Dm' })).toBeVisible()
+  const sampleResponses: number[] = []
+  page.on('response', (response) => { if (response.url().includes('/audio/')) sampleResponses.push(response.status()) })
+  await page.getByRole('button', { name: /播放/ }).click()
+  await expect(page.getByRole('button', { name: /暂停/ })).toBeVisible()
+  await expect.poll(() => sampleResponses.length).toBe(4)
+  expect(sampleResponses.every((status) => status === 200)).toBe(true)
+  await page.getByRole('button', { name: /停止/ }).click()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+})
+
+test('does not trigger the metronome keyboard shortcuts outside its module', async ({ page }) => {
+  await page.getByRole('link', { name: /Jam Loop/ }).click()
+  await page.keyboard.press('Space')
+  await page.getByRole('link', { name: /Metronome/ }).click()
+  await expect(page.getByRole('button', { name: '开始节拍' })).toBeVisible()
+})
+test('resets metronome progress from the transport', async ({ page }) => {
+  await page.getByRole('button', { name: '开始节拍' }).click()
+  await page.getByRole('button', { name: '重置节拍进度' }).click()
+  await expect(page.getByText('当前小节').locator('strong')).toHaveText('01')
+  await expect(page.getByRole('button', { name: '暂停节拍' })).toBeVisible()
 })

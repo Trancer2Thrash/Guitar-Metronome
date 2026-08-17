@@ -10,6 +10,7 @@ function fakeEngine(): MetronomeEngine {
     start: vi.fn(async () => undefined),
     resume: vi.fn(async () => undefined),
     pause: vi.fn(async () => undefined),
+    reset: vi.fn(async () => undefined),
     stop: vi.fn(),
     updateSettings: vi.fn(),
     drainVisualEvents: vi.fn(() => []),
@@ -96,4 +97,16 @@ describe('useMetronome', () => {
 
     expect(result.current.settings).toEqual(loaded)
     expect(engine.updateSettings).toHaveBeenLastCalledWith(loaded)
+  })
+
+  it('resets the active session without changing its playing state', async () => {
+    const engine = fakeEngine()
+    const { result } = renderHook(() => useMetronome({ engineFactory: () => engine }))
+
+    await act(async () => { await result.current.actions.play() })
+    await act(async () => { await result.current.actions.reset() })
+
+    expect(engine.reset).toHaveBeenCalledWith(result.current.settings, true)
+    expect(result.current.runtime).toMatchObject({ status: 'playing', beatIndex: 0, barNumber: 1 })
+    expect(result.current.runtime.elapsedSeconds).toBeLessThan(0.05)
   })

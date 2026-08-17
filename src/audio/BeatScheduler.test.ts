@@ -87,6 +87,17 @@ describe('BeatScheduler', () => {
     expect(sink.scheduled.at(-1)).toMatchObject({ when: 2, event: { beatIndex: 0 } })
   })
 
+  it('resets scheduled progress to beat one and cancels stale audio', () => {
+    const { clock, sink, scheduler } = createHarness({ ...DEFAULT_SETTINGS, bpm: 120 })
+    clock.current = 1.1
+    scheduler.tick()
+
+    scheduler.reset(DEFAULT_SETTINGS, true)
+
+    expect(sink.cancelAfter).toHaveBeenLastCalledWith(1.1)
+    expect(sink.scheduled.at(-1)).toMatchObject({ when: 1.1, event: { beatIndex: 0 } })
+    expect(scheduler.drainVisualEvents(1.1).at(-1)?.barNumber).toBe(1)
+  })
   it('cancels future audio and becomes inert when disposed', () => {
     const { clock, sink, scheduler } = createHarness()
     clock.current = 0.05

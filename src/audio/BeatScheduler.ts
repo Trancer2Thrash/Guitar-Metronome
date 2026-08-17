@@ -50,6 +50,20 @@ export class BeatScheduler {
     this.tick()
   }
 
+  reset(settings: MetronomeSettings, restart: boolean): void {
+    if (this.disposed) return
+    const now = this.clock.now()
+    this.sink.cancelAfter(now)
+    this.settings = settings
+    this.events = buildBarEvents(settings)
+    this.nextEventIndex = 0
+    this.nextEventTime = now
+    this.barNumber = 1
+    this.visualEvents = []
+    this.playing = restart
+    this.paused = false
+    if (restart) this.tick()
+  }
   updateSettings(settings: MetronomeSettings): void {
     if (this.disposed) return
     const priorShape = this.settings ? rhythmShape(this.settings) : null

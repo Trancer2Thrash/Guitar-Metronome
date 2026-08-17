@@ -43,6 +43,7 @@ export interface MetronomeEngine {
   start(settings: MetronomeSettings): Promise<void>
   resume(): Promise<void>
   pause(): Promise<void>
+  reset(settings: MetronomeSettings, restart: boolean): Promise<void>
   stop(): void
   updateSettings(settings: MetronomeSettings): void
   drainVisualEvents(): ScheduledVisualBeat[]
@@ -75,6 +76,14 @@ class BrowserMetronomeEngine implements MetronomeEngine {
     await this.audio.suspend()
   }
 
+  async reset(settings: MetronomeSettings, restart: boolean): Promise<void> {
+    this.stopTicker()
+    if (restart) await this.audio.ensureReady()
+    this.audio.configure(settings)
+    this.scheduler.reset(settings, restart)
+    if (restart) this.startTicker()
+    else this.audio.stop()
+  }
   stop(): void {
     this.stopTicker()
     this.scheduler.stop()
@@ -185,12 +194,14 @@ export interface UseMetronomeOptions {
   engineFactory?: () => MetronomeEngine
   storage?: Storage
   nowMs?: () => number
+  keyboardEnabled?: boolean
 }
 
 export function useMetronome({
   engineFactory = createDefaultEngine,
   storage = window.localStorage,
   nowMs = defaultNowMs,
+  keyboardEnabled = true,
 }: UseMetronomeOptions = {}) {
   const [store] = useState<PresetStore>(() => createPresetStore(storage))
   const [engine] = useState<MetronomeEngine>(() => engineFactory())
@@ -264,6 +275,22 @@ export function useMetronome({
     dispatch({ type: 'status', status: 'paused' })
   }
 
+  async function reset(): Promise<void> {
+    const priorStatus = state.runtime.status
+    accumulatedMsRef.current = 0
+    lastCompletedBarsRef.current = 0
+    tempoSessionRef.current = trainer.mode === 'tempo' ? createTempoSession(trainer.tempoProgram) : null
+    quietSessionRef.current = trainer.mode === 'quiet' ? createQuietCountSession(trainer.quietProgram) : null
+    setHideVisuals(false)
+
+    let resetSettings = state.settings
+    if (tempoSessionRef.current) resetSettings = { ...state.settings, bpm: tempoSessionRef.current.currentBpm }
+    await engine.reset(settingsForEngine(resetSettings), priorStatus === 'playing')
+    startedAtRef.current = nowMs()
+    setPhaseLabel(resetSettings.countInBars > 0 ? `预备拍 1/${resetSettings.countInBars}` : practiceLabel(trainer, tempoSessionRef.current, quietSessionRef.current))
+    dispatch({ type: 'reset' })
+    if (priorStatus !== 'stopped') dispatch({ type: 'status', status: priorStatus })
+  }
   function stop(): void {
     engine.stop()
     accumulatedMsRef.current = 0
@@ -403,6 +430,7 @@ export function useMetronome({
   })
 
   useEffect(() => {
+    if (!keyboardEnabled) return
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       if (target?.matches('input, select, textarea, [contenteditable="true"]')) return
@@ -444,6 +472,7 @@ export function useMetronome({
     actions: {
       play,
       pause,
+      reset,
       stop,
       setBpm,
       tap,
