@@ -140,7 +140,7 @@ export default function JamPage() {
     {error && <div className="error-banner" role="alert">{error}</div>}
 
     <section className="jam-controls panel" aria-label="Jam 基础设置">
-      <div className="control-group">
+      <div className="control-group control-group--tempo">
         <span>速度</span>
         <button type="button" aria-label="BPM 减 1" onClick={() => update({ ...session, bpm: Math.max(40, session.bpm - 1) })}>−</button>
         <input aria-label="Jam BPM" type="number" min="40" max="220" value={session.bpm} onChange={(event) => update({ ...session, bpm: Math.min(220, Math.max(40, Number(event.target.value))) })} />

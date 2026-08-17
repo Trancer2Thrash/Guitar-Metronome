@@ -389,4 +389,5 @@
 
 .control-group .jam-bpm-slider{width:clamp(96px,12vw,150px);padding:0;border:0;background:transparent;accent-color:var(--copper)}.chord-picker__actions{display:flex;align-items:center;gap:6px}.chord-picker__head .chord-picker__copy{width:auto;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;font-size:11px;font-weight:800;color:var(--ink-soft)}
 @media(max-width:720px){.jam-controls .control-group{min-width:0;max-width:100%;flex:1 1 100%}}
+@media(max-width:480px){.jam-controls .control-group--tempo{column-gap:5px;flex-wrap:wrap;overflow-x:visible}.control-group--tempo input[type=number]{width:clamp(58px,20vw,74px);min-width:0}.control-group--tempo .jam-bpm-slider{order:10;flex:1 0 100%;width:100%;margin:0}}
 .empty-state{grid-column:1/-1;margin:18px 0;padding:20px;border:1px dashed var(--line);border-radius:11px;color:var(--ink-soft);text-align:center;font-size:13px}.chip{min-height:44px}.control-group button,.inline-actions button,.secondary-action{min-width:44px;min-height:44px}.control-group input{min-height:44px}.chord-picker__head button{min-width:44px;width:44px;height:44px}.mute{min-height:44px}

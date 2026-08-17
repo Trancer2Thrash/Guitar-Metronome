@@ -88,6 +88,17 @@ test('edits and persists a jam loop on a phone viewport', async ({ page }) => {
   await page.getByRole('link', { name: /Jam Loop/ }).click()
   await expect(page.getByText('排好和弦，选择律动，让鼓、贝斯与扫弦持续循环。')).toBeVisible()
   await expect(page.getByText('留一段稳定的伴奏，把空间交给独奏')).toHaveCount(0)
+  const tempoLayout = await page.getByRole('button', { name: 'Tap' }).locator('..').evaluate((element) => {
+    const tap = element.querySelector('button:last-child')?.getBoundingClientRect()
+    return {
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      tapRight: tap?.right ?? Number.POSITIVE_INFINITY,
+      viewportWidth: window.innerWidth,
+    }
+  })
+  expect(tempoLayout.scrollWidth).toBeLessThanOrEqual(tempoLayout.clientWidth)
+  expect(tempoLayout.tapRight).toBeLessThanOrEqual(tempoLayout.viewportWidth)
   await page.getByRole('button', { name: '第 1 小节 C' }).click()
   await page.getByRole('button', { name: 'Dm', exact: true }).click()
   await page.getByRole('button', { name: '第 2 小节 G' }).click()
