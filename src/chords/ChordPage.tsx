@@ -61,7 +61,6 @@ export default function ChordPage() {
   return <main className="tool-page chord-page">
     <section className="tool-hero">
       <span className="tool-kicker">02 / CHORD ATLAS</span>
-      <h2>把和弦放在指尖，也放进耳朵</h2>
       <p>搜索常用指法，确认每根弦的位置，然后听一次完整扫弦。</p>
     </section>
     <div className="chord-workbench">

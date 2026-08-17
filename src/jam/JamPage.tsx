@@ -129,7 +129,6 @@ export default function JamPage() {
   return <main className="tool-page jam-page">
     <section className="tool-hero tool-hero--jam">
       <span className="tool-kicker">03 / JAM LOOP</span>
-      <h2>留一段稳定的伴奏，把空间交给独奏</h2>
       <p>排好和弦，选择律动，让鼓、贝斯与扫弦持续循环。</p>
       <div className="jam-now" aria-live="polite">
         <span>{STYLE_LABELS[session.style]}</span>

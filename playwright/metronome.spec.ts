@@ -8,6 +8,8 @@ test.beforeEach(async ({ page }) => {
 
 test('edits rhythm settings and restores them after reload', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '六弦练习室' })).toBeVisible()
+  await expect(page.getByText('六根琴弦构成练习标尺，强弱拍在同一条时间线上推进。')).toBeVisible()
+  await expect(page.getByText('看见每一拍，听清每一次落点')).toHaveCount(0)
   await page.getByRole('spinbutton', { name: 'BPM' }).fill('128')
   await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByLabel('拍号分子').selectOption('3')
@@ -22,6 +24,7 @@ test('edits rhythm settings and restores them after reload', async ({ page }) =>
 test('fits a phone viewport and opens focus mode', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 })
   await page.reload()
+  await expect(page.getByText('六根琴弦构成练习标尺，强弱拍在同一条时间线上推进。')).toBeVisible()
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
   expect(hasHorizontalOverflow).toBe(false)
@@ -71,7 +74,8 @@ test('uses the dark palette when the system requests dark mode', async ({ browse
 test('navigates to chord atlas and filters the catalog', async ({ page }) => {
   await page.getByRole('link', { name: /Chord/ }).click()
   await expect(page).toHaveURL(/#\/chords$/)
-  await expect(page.getByRole('heading', { name: /把和弦放在指尖/ })).toBeVisible()
+  await expect(page.getByText('搜索常用指法，确认每根弦的位置，然后听一次完整扫弦。')).toBeVisible()
+  await expect(page.getByText('把和弦放在指尖，也放进耳朵')).toHaveCount(0)
   await page.getByPlaceholder('例如 Cmaj7、F♯m').fill('Cmaj7')
   await page.getByRole('button', { name: /Cmaj7/ }).click()
   await expect(page.getByRole('img', { name: /Cmaj7 和弦指板图/ })).toBeVisible()
@@ -82,7 +86,8 @@ test('navigates to chord atlas and filters the catalog', async ({ page }) => {
 test('edits and persists a jam loop on a phone viewport', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 })
   await page.getByRole('link', { name: /Jam Loop/ }).click()
-  await expect(page.getByRole('heading', { name: /留一段稳定的伴奏/ })).toBeVisible()
+  await expect(page.getByText('排好和弦，选择律动，让鼓、贝斯与扫弦持续循环。')).toBeVisible()
+  await expect(page.getByText('留一段稳定的伴奏，把空间交给独奏')).toHaveCount(0)
   await page.getByRole('button', { name: '第 1 小节 C' }).click()
   await page.getByRole('button', { name: 'Dm', exact: true }).click()
   await page.getByRole('button', { name: '第 2 小节 G' }).click()
