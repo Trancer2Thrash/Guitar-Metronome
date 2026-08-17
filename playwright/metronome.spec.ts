@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { appPath } from '../playwright.config'
 
+const chromiumAudioOnly = 'Real Web Audio smoke tests run once in Chromium; headless Firefox/WebKit CI audio backends are not deterministic'
+
 test.beforeEach(async ({ page }, testInfo) => {
   if (testInfo.title === 'keeps Jam Loop playable when drum samples are unavailable') return
   await page.goto(appPath)
@@ -47,7 +49,7 @@ test('configures tempo training and starts it where Web Audio is available', asy
   await page.getByRole('button', { name: '关闭设置' }).click()
 
   await expect(page.getByRole('button', { name: /训练/ })).toContainText('速度训练')
-  if (browserName === 'webkit') return
+  if (browserName !== 'chromium') return
 
   await page.getByRole('button', { name: '开始节拍' }).click()
   await expect(page.getByRole('spinbutton', { name: 'BPM' })).toHaveValue('72')
@@ -83,7 +85,7 @@ test('navigates to chord atlas and filters the catalog', async ({ page, browserN
   await page.getByPlaceholder('例如 Cmaj7、F♯m').fill('Cmaj7')
   await page.getByRole('button', { name: /Cmaj7/ }).click()
   await expect(page.getByRole('img', { name: /Cmaj7 和弦指板图/ })).toBeVisible()
-  if (browserName === 'webkit') return
+  if (browserName !== 'chromium') return
 
   await page.getByRole('button', { name: /试听 Cmaj7/, exact: false }).click()
   await expect(page.getByRole('button', { name: /试听 Cmaj7/, exact: false })).toContainText('正在扫弦')
@@ -120,7 +122,7 @@ test('edits and persists a jam loop on a phone viewport', async ({ page, browser
   await page.reload()
   await expect(page.getByRole('button', { name: 'A 段第 1 小节 Dm' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'A 段第 2 小节 Dm' })).toBeVisible()
-  if (browserName !== 'webkit') {
+  if (browserName === 'chromium') {
     const sampleResponses: number[] = []
     page.on('response', (response) => { if (response.url().includes('/audio/')) sampleResponses.push(response.status()) })
     await page.getByRole('button', { name: /播放/ }).click()
@@ -139,7 +141,7 @@ test('does not trigger the metronome keyboard shortcuts outside its module', asy
   await expect(page.getByRole('button', { name: '开始节拍' })).toBeVisible()
 })
 test('resets metronome progress from the transport', async ({ page, browserName }) => {
-  test.skip(browserName === 'webkit', 'Playwright WebKit on Windows does not expose Web Audio')
+  test.skip(browserName !== 'chromium', chromiumAudioOnly)
   await page.getByRole('button', { name: '开始节拍' }).click()
   await page.getByRole('button', { name: /重置节拍进度/ }).click()
   await expect(page.getByText('当前小节').locator('strong')).toHaveText('01')
@@ -147,7 +149,7 @@ test('resets metronome progress from the transport', async ({ page, browserName 
 })
 
 test('keeps Jam Loop playable when drum samples are unavailable', async ({ page, browserName }) => {
-  test.skip(browserName === 'webkit', 'Playwright WebKit on Windows does not expose Web Audio')
+  test.skip(browserName !== 'chromium', chromiumAudioOnly)
   await page.route('**/audio/*.wav', (route) => route.fulfill({ status: 404, body: '' }))
   await page.goto(appPath)
   await page.evaluate(() => localStorage.clear())
