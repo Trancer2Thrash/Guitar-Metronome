@@ -26,7 +26,9 @@ const raw: Array<[string,string,ChordCategory,Array<number|null>,Array<number|nu
 export const CHORDS = raw.map(args=>chord(...args))
 export const CHORD_CATEGORIES: ChordCategory[] = ['Major','Minor','7th','Sus / Add','Power']
 export function normalizeChordName(name:string):string { return name.trim().replace(/^([A-G])([#b♭]?)/,(_,l,a)=>l+(ENHARMONIC[a]??a)).replace('♭','♭').replace('♯','#') }
-export function findChord(name:string):ChordDefinition|undefined { const n=normalizeChordName(name).replace('♭','b'); return CHORDS.find(c=>normalizeChordName(c.id).replace('♭','b')===n || normalizeChordName(c.name).replace('♭','b')===n) }
+const chordLookup = new Map<string,ChordDefinition>()
+CHORDS.forEach((item)=>{ chordLookup.set(normalizeChordName(item.id).replace('♭','b'),item); chordLookup.set(normalizeChordName(item.name).replace('♭','b'),item) })
+export function findChord(name:string):ChordDefinition|undefined { return chordLookup.get(normalizeChordName(name).replace('♭','b')) }
 export function transposeChordName(name:string,semitones:number):string { const ascii=name.replace('♯','#').replace('♭','b'); const m=ascii.match(/^([A-G](?:#|b)?)(.*)$/); if(!m)return name; const root=ENHARMONIC[m[1]!]??m[1]!; const index=ROOTS.indexOf(root); if(index<0)return name; return ROOTS[(index+semitones%12+12)%12]!+m[2]! }
 
 const ROOT_PITCH_CLASS: Record<string, number> = { C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11 }
@@ -34,13 +36,16 @@ const GENERATED_INTERVALS: Array<[RegExp, number[]]> = [
  [/maj7$/,[0,4,7,11,12]], [/m7$/,[0,3,7,10,12]], [/7$/,[0,4,7,10,12]],
  [/sus2$/,[0,2,7,12]], [/sus4$/,[0,5,7,12]], [/add9$/,[0,4,7,14]], [/5$/,[0,7,12]], [/m$/,[0,3,7,12]], [/$/,[0,4,7,12]],
 ]
+const resolvedMidiCache = new Map<string,number[]>()
 export function resolveChordMidi(name:string):number[] {
+ const cacheKey=normalizeChordName(name)
+ const cached=resolvedMidiCache.get(cacheKey);if(cached)return [...cached]
  const known=findChord(name)?.midi.filter((midi):midi is number=>midi!==null)
- if(known?.length)return known
+ if(known?.length){resolvedMidiCache.set(cacheKey,known);return [...known]}
  const ascii=name.trim().replace('♯','#').replace('♭','b');const match=ascii.match(/^([A-G](?:#|b)?)(.*)$/)
  if(!match)return []
  const pitchClass=ROOT_PITCH_CLASS[match[1]!];if(pitchClass===undefined)return []
  const root=40+(pitchClass-4+12)%12;const suffix=match[2]!
  const intervals=GENERATED_INTERVALS.find(([pattern])=>pattern.test(suffix))?.[1]??GENERATED_INTERVALS.at(-1)![1]
- return intervals.map(interval=>root+interval)
+ const resolved=intervals.map(interval=>root+interval);resolvedMidiCache.set(cacheKey,resolved);return [...resolved]
 }

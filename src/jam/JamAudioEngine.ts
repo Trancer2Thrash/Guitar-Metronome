@@ -1,7 +1,25 @@
 import { resolveChordMidi } from '../chords/chordData'
-import { buildJamEvents, type DrumKind, type JamEvent, type JamSession } from './jamModel'
+import {
+  buildCountInCues,
+  buildJamEvents,
+  buildJamTimeline,
+  totalJamBars,
+  type DrumKind,
+  type JamEvent,
+  type JamSession,
+  type JamTimelineBar,
+} from './jamModel'
 
-interface Position { bar: number; beat: number }
+export interface JamPosition {
+  phase: 'count-in' | 'playing'
+  bar: number
+  beat: number
+  sectionId: 'A' | 'B' | 'C'
+  sectionIndex: number
+  localBar: number
+  countInBar?: number
+}
+export interface JamStartOptions { fromBeat?: number; countIn?: boolean }
 type DrumSampleBank = Partial<Record<DrumKind, AudioBuffer>>
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
@@ -35,17 +53,21 @@ export class JamAudioEngine {
   private visual: number | null = null
   private sources = new Set<AudioScheduledSourceNode>()
   private running = false
-  private startTime = 0
+  private musicStartTime = 0
+  private countInStartTime = 0
+  private countInBeats = 0
   private pausedBeat = 0
   private session: JamSession | null = null
   private events: JamEvent[] = []
+  private timeline: JamTimelineBar[] = []
   private eventIndex = 0
   private eventCycle = 0
-  private onPosition: ((position: Position) => void) | null = null
+  private onPosition: ((position: JamPosition) => void) | null = null
   private samples: DrumSampleBank | null = null
   private samplePromise: Promise<DrumSampleBank> | null = null
   private fallbackNoise: AudioBuffer | null = null
   private playbackGeneration = 0
+  private lastVisualKey = ''
 
   private async ready() {
     if (!this.context) this.context = new AudioContext()
@@ -59,21 +81,30 @@ export class JamAudioEngine {
 
   get isRunning() { return this.running }
 
-  async start(session: JamSession, onPosition: (position: Position) => void, fromBeat = this.pausedBeat): Promise<boolean> {
+  async start(session: JamSession, onPosition: (position: JamPosition) => void, options: JamStartOptions = {}): Promise<boolean> {
     const generation = ++this.playbackGeneration
     this.running = false
     this.clearTimers()
     this.stopNodes()
     const context = await this.ready()
     if (generation !== this.playbackGeneration) return false
+
     this.session = session
+    this.timeline = buildJamTimeline(session)
     this.events = buildJamEvents(session)
     this.onPosition = onPosition
     this.running = true
-    const totalBeats = session.bars * session.meter
+    this.lastVisualKey = ''
+
+    const totalBeats = totalJamBars(session) * session.meter
+    const fromBeat = options.fromBeat ?? this.pausedBeat
     this.pausedBeat = ((fromBeat % totalBeats) + totalBeats) % totalBeats
     const beatDuration = 60 / session.bpm
-    this.startTime = context.currentTime - this.pausedBeat * beatDuration
+    const useCountIn = options.countIn === true && this.pausedBeat === 0 && session.countInBars > 0
+    this.countInBeats = useCountIn ? session.countInBars * session.meter : 0
+    this.musicStartTime = context.currentTime + 0.05 + this.countInBeats * beatDuration - this.pausedBeat * beatDuration
+    this.countInStartTime = this.musicStartTime - this.countInBeats * beatDuration
+
     this.eventIndex = this.events.findIndex((event) => event.bar * session.meter + event.beat >= this.pausedBeat)
     if (this.eventIndex < 0) {
       this.eventIndex = 0
@@ -81,7 +112,10 @@ export class JamAudioEngine {
     } else {
       this.eventCycle = 0
     }
+
+    if (useCountIn) this.scheduleCountIn(beatDuration)
     this.tick()
+    this.updateVisual()
     this.timer = window.setInterval(() => this.tick(), 25)
     this.visual = window.setInterval(() => this.updateVisual(), 30)
     return true
@@ -91,7 +125,9 @@ export class JamAudioEngine {
     if (!this.running || !this.context || !this.session) return
     this.playbackGeneration += 1
     const beatDuration = 60 / this.session.bpm
-    this.pausedBeat = ((this.context.currentTime - this.startTime) / beatDuration) % (this.session.bars * this.session.meter)
+    const musicPosition = (this.context.currentTime - this.musicStartTime) / beatDuration
+    const totalBeats = totalJamBars(this.session) * this.session.meter
+    this.pausedBeat = musicPosition <= 0 ? 0 : ((musicPosition % totalBeats) + totalBeats) % totalBeats
     this.running = false
     this.clearTimers()
     this.stopNodes()
@@ -101,16 +137,17 @@ export class JamAudioEngine {
     this.playbackGeneration += 1
     this.running = false
     this.pausedBeat = 0
+    this.countInBeats = 0
     this.clearTimers()
     this.stopNodes()
-    this.onPosition?.({ bar: 0, beat: 0 })
+    this.emitPosition(this.positionAtStart())
   }
 
   async reset(): Promise<boolean> {
     const session = this.session
     const callback = this.onPosition
     this.stop()
-    if (session && callback) return this.start(session, callback, 0)
+    if (session && callback) return this.start(session, callback, { fromBeat: 0, countIn: true })
     return false
   }
 
@@ -126,11 +163,11 @@ export class JamAudioEngine {
   private tick() {
     if (!this.running || !this.context || !this.session || this.events.length === 0) return
     const beatDuration = 60 / this.session.bpm
-    const totalBeats = this.session.bars * this.session.meter
+    const totalBeats = totalJamBars(this.session) * this.session.meter
     while (true) {
       const event = this.events[this.eventIndex]!
       const eventBeat = event.bar * this.session.meter + event.beat + this.eventCycle * totalBeats
-      const when = this.startTime + eventBeat * beatDuration
+      const when = this.musicStartTime + eventBeat * beatDuration
       if (when >= this.context.currentTime + 0.12) break
       if (when >= this.context.currentTime - 0.02) this.schedule(event, when, beatDuration)
       this.eventIndex += 1
@@ -143,12 +180,62 @@ export class JamAudioEngine {
 
   private updateVisual() {
     if (!this.running || !this.context || !this.session) return
-    const total = this.session.bars * this.session.meter
     const beatDuration = 60 / this.session.bpm
-    const position = (((this.context.currentTime - this.startTime) / beatDuration) % total + total) % total
-    this.onPosition?.({ bar: Math.floor(position / this.session.meter), beat: Math.floor(position % this.session.meter) })
+    if (this.countInBeats > 0 && this.context.currentTime < this.musicStartTime) {
+      const elapsed = Math.max(0, (this.context.currentTime - this.countInStartTime) / beatDuration)
+      const cue = Math.min(this.countInBeats - 1, Math.floor(elapsed))
+      const start = this.positionAtStart()
+      this.emitPosition({ ...start, phase: 'count-in', beat: cue % this.session.meter, countInBar: Math.floor(cue / this.session.meter) })
+      return
+    }
+
+    const total = totalJamBars(this.session) * this.session.meter
+    const position = (((this.context.currentTime - this.musicStartTime) / beatDuration) % total + total) % total
+    const bar = Math.floor(position / this.session.meter)
+    const timelineBar = this.timeline[bar] ?? this.timeline[0]!
+    this.emitPosition({
+      phase: 'playing',
+      bar,
+      beat: Math.floor(position % this.session.meter),
+      sectionId: timelineBar.sectionId,
+      sectionIndex: timelineBar.sectionIndex,
+      localBar: timelineBar.localBar,
+    })
   }
 
+  private positionAtStart(): JamPosition {
+    const first = this.timeline[0]
+    return { phase: 'playing', bar: 0, beat: 0, sectionId: first?.sectionId ?? 'A', sectionIndex: first?.sectionIndex ?? 0, localBar: 0 }
+  }
+
+  private emitPosition(position: JamPosition) {
+    const key = `${position.phase}:${position.countInBar ?? -1}:${position.bar}:${position.beat}:${position.sectionId}`
+    if (key === this.lastVisualKey) return
+    this.lastVisualKey = key
+    this.onPosition?.(position)
+  }
+
+  private scheduleCountIn(beatDuration: number) {
+    if (!this.session) return
+    buildCountInCues(this.session).forEach((cue, index) => {
+      this.click(this.countInStartTime + index * beatDuration, cue.accent)
+    })
+  }
+
+  private click(when: number, accent: boolean) {
+    const context = this.context!
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(accent ? 1320 : 880, when)
+    gain.gain.setValueAtTime(0.0001, when)
+    gain.gain.exponentialRampToValueAtTime(accent ? 0.24 : 0.14, when + 0.003)
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.055)
+    oscillator.connect(gain).connect(context.destination)
+    oscillator.start(when)
+    oscillator.stop(when + 0.06)
+    this.track(oscillator)
+  }
   private schedule(event: JamEvent, when: number, beatDuration: number) {
     if (!this.session) return
     const mix = this.session.mix[event.track]
