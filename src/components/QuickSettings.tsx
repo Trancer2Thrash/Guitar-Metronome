@@ -24,7 +24,7 @@ interface QuickSettingsProps {
 export function QuickSettings({ settings, trainerMode = 'off', onOpen }: QuickSettingsProps) {
   return (
     <nav className="quick-settings" aria-label="快速设置">
-      <button type="button" onClick={() => onOpen('rhythm')} aria-label={`拍号 ${settings.meter.numerator}/${settings.meter.denominator}`}>
+      <button type="button" onClick={() => onOpen('rhythm')}>
         <span className="quick-settings__label">拍号</span>
         <strong>{settings.meter.numerator}/{settings.meter.denominator}</strong>
       </button>

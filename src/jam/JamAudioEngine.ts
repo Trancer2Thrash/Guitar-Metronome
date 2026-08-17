@@ -2,11 +2,31 @@ import { resolveChordMidi } from '../chords/chordData'
 import { buildJamEvents, type DrumKind, type JamEvent, type JamSession } from './jamModel'
 
 interface Position { bar: number; beat: number }
+type DrumSampleBank = Partial<Record<DrumKind, AudioBuffer>>
+type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
 const SAMPLE_FILES: Record<DrumKind, string> = {
   kick: 'kick.wav',
   snare: 'snare.wav',
   'closed-hat': 'closed-hat.wav',
   'open-hat': 'open-hat.wav',
+}
+
+export async function loadDrumSamples(context: AudioContext, fetcher: Fetcher = fetch): Promise<DrumSampleBank> {
+  const entries = await Promise.all(
+    (Object.entries(SAMPLE_FILES) as Array<[DrumKind, string]>).map(async ([kind, file]) => {
+      try {
+        const response = await fetcher(`${import.meta.env.BASE_URL}audio/${file}`)
+        if (!response.ok) return null
+        const buffer = await context.decodeAudioData(await response.arrayBuffer())
+        return [kind, buffer] as const
+      } catch {
+        return null
+      }
+    }),
+  )
+
+  return Object.fromEntries(entries.filter((entry): entry is readonly [DrumKind, AudioBuffer] => entry !== null))
 }
 
 export class JamAudioEngine {
@@ -22,15 +42,16 @@ export class JamAudioEngine {
   private eventIndex = 0
   private eventCycle = 0
   private onPosition: ((position: Position) => void) | null = null
-  private samples: Record<DrumKind, AudioBuffer> | null = null
-  private samplePromise: Promise<Record<DrumKind, AudioBuffer>> | null = null
+  private samples: DrumSampleBank | null = null
+  private samplePromise: Promise<DrumSampleBank> | null = null
+  private fallbackNoise: AudioBuffer | null = null
   private playbackGeneration = 0
 
   private async ready() {
     if (!this.context) this.context = new AudioContext()
     if (this.context.state === 'suspended') await this.context.resume()
     if (!this.samples) {
-      this.samplePromise ??= this.loadSamples(this.context)
+      this.samplePromise ??= loadDrumSamples(this.context)
       this.samples = await this.samplePromise
     }
     return this.context
@@ -99,6 +120,7 @@ export class JamAudioEngine {
     this.context = null
     this.samples = null
     this.samplePromise = null
+    this.fallbackNoise = null
   }
 
   private tick() {
@@ -138,13 +160,62 @@ export class JamAudioEngine {
 
   private drum(kind: DrumKind, when: number, volume: number) {
     const context = this.context!
+    const sample = this.samples?.[kind]
+    if (!sample) {
+      this.synthDrum(kind, when, volume)
+      return
+    }
+
     const source = context.createBufferSource()
     const gain = context.createGain()
-    source.buffer = this.samples![kind]
+    source.buffer = sample
     gain.gain.setValueAtTime(volume * (kind === 'kick' ? 0.8 : kind === 'snare' ? 0.58 : 0.42), when)
     source.connect(gain).connect(context.destination)
     source.start(when)
     this.track(source)
+  }
+
+  private synthDrum(kind: DrumKind, when: number, volume: number) {
+    const context = this.context!
+    if (kind === 'kick') {
+      const oscillator = context.createOscillator()
+      const gain = context.createGain()
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(150, when)
+      oscillator.frequency.exponentialRampToValueAtTime(48, when + 0.11)
+      gain.gain.setValueAtTime(Math.max(0.001, volume * 0.75), when)
+      gain.gain.exponentialRampToValueAtTime(0.001, when + 0.16)
+      oscillator.connect(gain).connect(context.destination)
+      oscillator.start(when)
+      oscillator.stop(when + 0.18)
+      this.track(oscillator)
+      return
+    }
+
+    const source = context.createBufferSource()
+    const filter = context.createBiquadFilter()
+    const gain = context.createGain()
+    const duration = kind === 'snare' ? 0.16 : kind === 'open-hat' ? 0.24 : 0.065
+    source.buffer = this.getFallbackNoise()
+    filter.type = 'highpass'
+    filter.frequency.value = kind === 'snare' ? 1100 : 5600
+    gain.gain.setValueAtTime(Math.max(0.001, volume * (kind === 'snare' ? 0.46 : 0.3)), when)
+    gain.gain.exponentialRampToValueAtTime(0.001, when + duration)
+    source.connect(filter).connect(gain).connect(context.destination)
+    source.start(when)
+    source.stop(when + duration + 0.01)
+    this.track(source)
+  }
+
+  private getFallbackNoise() {
+    if (this.fallbackNoise) return this.fallbackNoise
+    const context = this.context!
+    const length = Math.ceil(context.sampleRate * 0.3)
+    const buffer = context.createBuffer(1, length, context.sampleRate)
+    const channel = buffer.getChannelData(0)
+    for (let index = 0; index < channel.length; index += 1) channel[index] = Math.random() * 2 - 1
+    this.fallbackNoise = buffer
+    return buffer
   }
 
   private bass(name: string, when: number, duration: number, volume: number) {
@@ -183,15 +254,6 @@ export class JamAudioEngine {
       oscillator.stop(start + duration + 0.02)
       this.track(oscillator)
     })
-  }
-
-  private async loadSamples(context: AudioContext) {
-    const entries = await Promise.all((Object.entries(SAMPLE_FILES) as Array<[DrumKind, string]>).map(async ([kind, file]) => {
-      const response = await fetch(`${import.meta.env.BASE_URL}audio/${file}`)
-      if (!response.ok) throw new Error(`Unable to load drum sample: ${file}`)
-      return [kind, await context.decodeAudioData(await response.arrayBuffer())] as const
-    }))
-    return Object.fromEntries(entries) as Record<DrumKind, AudioBuffer>
   }
 
   private track(source: AudioScheduledSourceNode) {

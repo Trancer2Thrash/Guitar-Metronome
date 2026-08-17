@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="六弦练习室图标">
+  <rect width="512" height="512" rx="112" fill="#17211d"/>
+  <circle cx="256" cy="256" r="166" fill="none" stroke="#f4f0e7" stroke-width="10"/>
+  <g stroke="#c86738" stroke-linecap="round">
+    <path d="M142 176h228" stroke-width="7"/>
+    <path d="M132 208h248" stroke-width="8"/>
+    <path d="M126 240h260" stroke-width="9"/>
+    <path d="M126 272h260" stroke-width="10"/>
+    <path d="M132 304h248" stroke-width="11"/>
+    <path d="M142 336h228" stroke-width="12"/>
+  </g>
+  <circle cx="256" cy="256" r="54" fill="#f4f0e7"/>
+  <path d="M225 221h19l12 61 12-61h19l-20 70h-22z" fill="#17211d"/>
+  <path d="M298 221h18v70h-18z" fill="#17211d"/>
+</svg>

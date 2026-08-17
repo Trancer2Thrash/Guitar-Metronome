@@ -6,14 +6,17 @@
   "packageManager": "pnpm@11.5.2",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/check-bundle-size.mjs",
+    "preview": "vite preview",
+    "build": "tsc -b && vite build && node scripts/generate-service-worker.mjs && node scripts/check-pwa.mjs && node scripts/check-bundle-size.mjs",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "pnpm build && playwright test",
     "check": "pnpm lint && pnpm test && pnpm build",
     "check:size": "node scripts/check-bundle-size.mjs",
-    "generate:audio": "node scripts/generate-drum-samples.mjs"
+    "generate:audio": "node scripts/generate-drum-samples.mjs",
+    "check:pwa": "node scripts/check-pwa.mjs",
+    "generate:icons": "node scripts/render-icons.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
