@@ -4,15 +4,21 @@ export interface ChordDefinition {
   id: string; name: string; category: ChordCategory; frets: Array<number | null>; fingers: Array<number | null>
   barre?: Barre; notes: string[]; intervals: string[]; midi: Array<number | null>
 }
-const OPEN_MIDI = [40, 45, 50, 55, 59, 64]
-const NOTE_NAMES = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B']
+import { OPEN_MIDI, ROOT_PITCH_CLASS } from './tuning'
+const NOTE_NAMES_SHARP = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B']
+const NOTE_NAMES_FLAT = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B']
 const ROOTS = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B']
-const ENHARMONIC: Record<string,string> = { 'C#':'D♭','Db':'D♭','D#':'E♭','Eb':'E♭','F#':'G♭','Gb':'G♭','G#':'A♭','Ab':'A♭','A#':'B♭','Bb':'B♭' }
+const ROOTS_SHARP = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B']
+const ENHARMONIC: Record<string,string> = { 'C#':'D♭','Db':'D♭','D#':'E♭','Eb':'E♭','E#':'F','Fb':'E','F#':'G♭','Gb':'G♭','G#':'A♭','Ab':'A♭','A#':'B♭','Bb':'B♭','B#':'C','Cb':'B' }
+const ENHARMONIC_SHARP: Record<string,string> = { 'Db':'C♯','C#':'C♯','Eb':'D♯','D#':'D♯','Fb':'E','E#':'F','Gb':'F♯','F#':'F♯','Ab':'G♯','G#':'G♯','Bb':'A♯','A#':'A♯','Cb':'B','B#':'C' }
+function prefersSharps(name: string): boolean { const ascii = name.replace('♯','#').replace('♭','b'); const m = ascii.match(/^([A-G](?:#|b)?)/); return m ? m[1]!.includes('#') : false }
+function prefersFlats(name: string): boolean { const ascii = name.replace('♯','#').replace('♭','b'); const m = ascii.match(/^([A-G](?:#|b)?)/); return m ? m[1]!.includes('b') : false }
+function noteNameFor(pitch: number, chordName: string): string { return prefersSharps(chordName) ? NOTE_NAMES_SHARP[pitch%12]! : NOTE_NAMES_FLAT[pitch%12]! }
 const qualityIntervals: Record<string,string[]> = { major:['1','3','5'], minor:['1','♭3','5'], seven:['1','3','5','♭7'], maj7:['1','3','5','7'], min7:['1','♭3','5','♭7'], sus:['1','4','5'], add:['1','3','5','9'], power:['1','5'] }
 function midiFor(frets: Array<number|null>) { return frets.map((fret,i)=>fret===null?null:OPEN_MIDI[i]!+fret) }
-function notesFor(midi: Array<number|null>) { return [...new Set(midi.filter((n):n is number=>n!==null).map(n=>NOTE_NAMES[n%12]!))] }
+function notesFor(midi: Array<number|null>, chordName: string) { return [...new Set(midi.filter((n):n is number=>n!==null).map(n=>noteNameFor(n, chordName)))] }
 function chord(id:string,name:string,category:ChordCategory,frets:Array<number|null>,fingers:Array<number|null>,quality:string,barre?:Barre):ChordDefinition {
- const midi=midiFor(frets); return {id,name,category,frets,fingers,notes:notesFor(midi),intervals:qualityIntervals[quality]??qualityIntervals.major!,midi,...(barre?{barre}:{})}
+ const midi=midiFor(frets); return {id,name,category,frets,fingers,notes:notesFor(midi, name),intervals:qualityIntervals[quality]??qualityIntervals.major!,midi,...(barre?{barre}:{})}
 }
 const raw: Array<[string,string,ChordCategory,Array<number|null>,Array<number|null>,string,Barre?]> = [
  ['C','C','Major',[null,3,2,0,1,0],[null,3,2,null,1,null],'major'],['D','D','Major',[null,null,0,2,3,2],[null,null,null,1,3,2],'major'],['E','E','Major',[0,2,2,1,0,0],[null,2,3,1,null,null],'major'],['F','F','Major',[1,3,3,2,1,1],[1,3,4,2,1,1],'major',{fret:1,fromString:0,toString:5}],['G','G','Major',[3,2,0,0,0,3],[2,1,null,null,null,3],'major'],['A','A','Major',[null,0,2,2,2,0],[null,null,1,2,3,null],'major'],['Bb','B♭','Major',[null,1,3,3,3,1],[null,1,2,3,4,1],'major',{fret:1,fromString:1,toString:5}],['B','B','Major',[null,2,4,4,4,2],[null,1,2,3,4,1],'major',{fret:2,fromString:1,toString:5}],
@@ -29,9 +35,8 @@ export function normalizeChordName(name:string):string { return name.trim().repl
 const chordLookup = new Map<string,ChordDefinition>()
 CHORDS.forEach((item)=>{ chordLookup.set(normalizeChordName(item.id).replace('♭','b'),item); chordLookup.set(normalizeChordName(item.name).replace('♭','b'),item) })
 export function findChord(name:string):ChordDefinition|undefined { return chordLookup.get(normalizeChordName(name).replace('♭','b')) }
-export function transposeChordName(name:string,semitones:number):string { const ascii=name.replace('♯','#').replace('♭','b'); const m=ascii.match(/^([A-G](?:#|b)?)(.*)$/); if(!m)return name; const root=ENHARMONIC[m[1]!]??m[1]!; const index=ROOTS.indexOf(root); if(index<0)return name; return ROOTS[(index+semitones%12+12)%12]!+m[2]! }
+export function transposeChordName(name:string,semitones:number):string { const ascii=name.replace('♯','#').replace('♭','b'); const m=ascii.match(/^([A-G](?:#|b)?)(.*)$/); if(!m)return name; const useSharps = prefersSharps(name); const root=useSharps ? (ENHARMONIC_SHARP[m[1]!]??m[1]!) : (ENHARMONIC[m[1]!]??m[1]!); const rootIndex = (useSharps ? ROOTS_SHARP : ROOTS).indexOf(root); if(rootIndex<0)return name; return (useSharps ? ROOTS_SHARP : ROOTS)[(rootIndex+semitones%12+12)%12]!+m[2]! }
 
-const ROOT_PITCH_CLASS: Record<string, number> = { C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11 }
 const GENERATED_INTERVALS: Array<[RegExp, number[]]> = [
  [/maj7$/,[0,4,7,11,12]], [/m7$/,[0,3,7,10,12]], [/7$/,[0,4,7,10,12]],
  [/sus2$/,[0,2,7,12]], [/sus4$/,[0,5,7,12]], [/add9$/,[0,4,7,14]], [/5$/,[0,7,12]], [/m$/,[0,3,7,12]], [/$/,[0,4,7,12]],

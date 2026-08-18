@@ -1,10 +1,10 @@
 import type { ChordDefinition } from './chordData'
 import { getFretboardBaseFret, VISIBLE_FRETS } from './fretboardGeometry'
 
-export function Fretboard({ chord, compact = false }: { chord: ChordDefinition; compact?: boolean }) {
+export function Fretboard({ chord }: { chord: ChordDefinition }) {
   const baseFret = getFretboardBaseFret(chord.frets)
-  const width = compact ? 150 : 260
-  const height = compact ? 190 : 320
+  const width = 260
+  const height = 320
   const left = 28
   const top = 38
   const gridWidth = width - 48
@@ -52,7 +52,7 @@ export function Fretboard({ chord, compact = false }: { chord: ChordDefinition; 
       )}
       {chord.frets.map((fret, index) => fret !== null && fret > 0 ? (
         <g key={index}>
-          <circle cx={stringX(index)} cy={fretY(fret)} r={compact ? 7 : 10} className="fretboard__dot" />
+          <circle cx={stringX(index)} cy={fretY(fret)} r={10} className="fretboard__dot" />
           <text x={stringX(index)} y={fretY(fret) + 4} textAnchor="middle" className="fretboard__finger">{chord.fingers[index] ?? ''}</text>
         </g>
       ) : null)}
