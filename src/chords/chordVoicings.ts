@@ -98,6 +98,6 @@ export function toPlayableChord(chord: ChordDefinition, selected: ChordVoicing):
     frets: [...selected.frets],
     fingers: [...selected.fingers],
     midi: [...selected.midi],
-    ...(selected.barre ? { barre: selected.barre } : { barre: undefined }),
+    barre: selected.barre,
   }
 }
