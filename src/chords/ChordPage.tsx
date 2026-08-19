@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { audioSession } from '../audio/AudioSession'
-import { ChordAudioEngine } from './ChordAudioEngine'
+import { ChordAudioEngine, DEFAULT_PATTERN, type StrumPattern } from './ChordAudioEngine'
 import { ChordChangeTrainer, type ChordChangeTrainerHandle } from './ChordChangeTrainer'
 import { CHORDS, CHORD_CATEGORIES, type ChordCategory } from './chordData'
 import { getChordVoicings, toPlayableChord } from './chordVoicings'
@@ -12,6 +12,7 @@ export default function ChordPage() {
   const [selected, setSelected] = useState(CHORDS[0]!)
   const [voicingId, setVoicingId] = useState('')
   const [playing, setPlaying] = useState(false)
+  const [pattern, setPattern] = useState<StrumPattern>(DEFAULT_PATTERN)
   const audio = useRef<ChordAudioEngine | null>(null)
   const previewTimer = useRef<number | null>(null)
   const trainer = useRef<ChordChangeTrainerHandle | null>(null)
@@ -61,7 +62,7 @@ export default function ChordPage() {
     audio.current ??= new ChordAudioEngine()
     setPlaying(true)
     try {
-      const started = await audio.current.play(playableChord)
+      const started = await audio.current.play(playableChord, pattern)
       if (!started || audioSession.owner !== 'chords') {
         setPlaying(false)
         return
@@ -94,6 +95,17 @@ export default function ChordPage() {
           <span className="eyebrow">STANDARD TUNING · E A D G B E</span><h3>{selected.name}</h3><p>{selectedVoicing.label}{playableChord.barre ? ` · ${playableChord.barre.fret} 品横按` : ''}</p>
           <dl><div><dt>组成音</dt><dd>{selected.notes.join(' · ')}</dd></div><div><dt>音程</dt><dd>{selected.intervals.join(' · ')}</dd></div><div><dt>按弦</dt><dd>{playableChord.frets.map((value) => value === null ? '×' : value).join(' · ')}</dd></div></dl>
           <button type="button" className="primary-action" onClick={preview} aria-label={`试听 ${selected.name} ${selectedVoicing.label}`}><span aria-hidden="true">▶</span>{playing ? '正在扫弦' : '试听和弦'}</button>
+          <div className="pattern-selector" aria-label="扫弦模式">
+            <label>
+              扫弦方向
+              <select value={pattern.direction} onChange={(e) => setPattern({ ...pattern, direction: e.target.value as StrumPattern['direction'] })}>
+                <option value="down">下扫</option>
+                <option value="up">上扫</option>
+                <option value="arpeggio-down">琶音 低→高</option>
+                <option value="arpeggio-up">琶音 高→低</option>
+              </select>
+            </label>
+          </div>
         </div>
       </section>
     </div>

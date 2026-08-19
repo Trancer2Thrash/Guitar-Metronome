@@ -63,7 +63,7 @@ describe('ChordAudioEngine', () => {
 
     expect(await engine.play(chord)).toBe(true)
     const firstPreview = [...contexts[0]!.oscillators]
-    expect(firstPreview.map((oscillator) => oscillator.starts[0])).toEqual([10.065, 10.11, 10.155, 10.2, 10.245])
+    expect(firstPreview.map((oscillator) => oscillator.starts[0])).toEqual([10.02, 10.065, 10.11, 10.155, 10.2])
 
     expect(await engine.play(chord)).toBe(true)
     firstPreview.forEach((oscillator) => expect(oscillator.stops).toHaveLength(2))

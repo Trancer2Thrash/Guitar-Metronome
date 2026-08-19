@@ -28,7 +28,12 @@ function movableFret(pitchClass: number, openPitchClass: number) {
 }
 
 function voicing(id: string, label: string, frets: Array<number | null>, fingers: Array<number | null>, barre?: ChordDefinition['barre']): ChordVoicing {
-  return { id, label, frets, fingers, midi: midiFor(frets), ...(barre ? { barre } : {}) }
+  const midi = midiFor(frets)
+  const max = midi.reduce<number>((acc, val) => Math.max(acc, val ?? 0), 0)
+  if (max > 72) {
+    return { id, label, frets, fingers, midi: midi.map((m) => (m === null ? null : m - 12)), ...(barre ? { barre } : {}) }
+  }
+  return { id, label, frets, fingers, midi, ...(barre ? { barre } : {}) }
 }
 
 function shapeQuality(quality: string): 'major' | 'minor' | 'seven' | 'maj7' | 'min7' | 'power' | null {

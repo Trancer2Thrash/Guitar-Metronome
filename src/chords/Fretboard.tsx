@@ -1,4 +1,5 @@
 import type { ChordDefinition } from './chordData'
+import { noteNameFor } from './chordData'
 import { getFretboardBaseFret, VISIBLE_FRETS } from './fretboardGeometry'
 
 export function Fretboard({ chord }: { chord: ChordDefinition }) {
@@ -36,7 +37,17 @@ export function Fretboard({ chord }: { chord: ChordDefinition }) {
           return <text key={index} x={stringX(index)} y="32" textAnchor="middle" className="fretboard__marker">×</text>
         }
         if (fret === 0) {
-          return <circle key={index} cx={stringX(index)} cy="27" r="5" className="fretboard__open" />
+        const openMidi = chord.midi[index]
+          return (
+            <g key={index}>
+              <circle cx={stringX(index)} cy="27" r="5" className="fretboard__open" />
+              {openMidi !== null && openMidi !== undefined && (
+                <text x={stringX(index)} y="42" textAnchor="middle" className="fretboard__note">
+                  {noteNameFor(openMidi, chord.name)}
+                </text>
+              )}
+            </g>
+          )
         }
         return null
       })}
@@ -54,10 +65,13 @@ export function Fretboard({ chord }: { chord: ChordDefinition }) {
         <g key={index}>
           <circle cx={stringX(index)} cy={fretY(fret)} r={10} className="fretboard__dot" />
           <text x={stringX(index)} y={fretY(fret) + 4} textAnchor="middle" className="fretboard__finger">{chord.fingers[index] ?? ''}</text>
+          {chord.midi[index] !== null && (
+            <text x={stringX(index)} y={fretY(fret) + 20} textAnchor="middle" className="fretboard__note">
+              {noteNameFor(chord.midi[index]!, chord.name)}
+            </text>
+          )}
         </g>
       ) : null)}
     </svg>
   )
 }
-
-

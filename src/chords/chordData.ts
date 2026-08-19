@@ -12,7 +12,7 @@ const ROOTS_SHARP = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯',
 const ENHARMONIC: Record<string,string> = { 'C#':'D♭','Db':'D♭','D#':'E♭','Eb':'E♭','E#':'F','Fb':'E','F#':'G♭','Gb':'G♭','G#':'A♭','Ab':'A♭','A#':'B♭','Bb':'B♭','B#':'C','Cb':'B' }
 const ENHARMONIC_SHARP: Record<string,string> = { 'Db':'C♯','C#':'C♯','Eb':'D♯','D#':'D♯','Fb':'E','E#':'F','Gb':'F♯','F#':'F♯','Ab':'G♯','G#':'G♯','Bb':'A♯','A#':'A♯','Cb':'B','B#':'C' }
 function prefersSharps(name: string): boolean { const ascii = name.replace('♯','#').replace('♭','b'); const m = ascii.match(/^([A-G](?:#|b)?)/); return m ? m[1]!.includes('#') : false }
-function noteNameFor(pitch: number, chordName: string): string { return prefersSharps(chordName) ? NOTE_NAMES_SHARP[pitch%12]! : NOTE_NAMES_FLAT[pitch%12]! }
+export function noteNameFor(pitch: number, chordName: string): string { return prefersSharps(chordName) ? NOTE_NAMES_SHARP[pitch%12]! : NOTE_NAMES_FLAT[pitch%12]! }
 const qualityIntervals: Record<string,string[]> = { major:['1','3','5'], minor:['1','♭3','5'], seven:['1','3','5','♭7'], maj7:['1','3','5','7'], min7:['1','♭3','5','♭7'], sus:['1','4','5'], add:['1','3','5','9'], power:['1','5'] }
 function midiFor(frets: Array<number|null>) { return frets.map((fret,i)=>fret===null?null:OPEN_MIDI[i]!+fret) }
 function notesFor(midi: Array<number|null>, chordName: string) { return [...new Set(midi.filter((n):n is number=>n!==null).map(n=>noteNameFor(n, chordName)))] }
