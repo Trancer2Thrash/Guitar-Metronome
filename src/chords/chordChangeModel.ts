@@ -22,12 +22,13 @@ function nearest<T extends number>(value: number, choices: T[]): T {
 }
 
 export function normalizeChordChangeConfig(input: Partial<Omit<ChordChangeConfig, 'beatsPerChord' | 'durationMinutes'>> & { beatsPerChord?: number; durationMinutes?: number }): ChordChangeConfig {
+  const bpm = Number.isFinite(input.bpm) ? input.bpm! : 80
   return {
     chordA: input.chordA || 'C',
     chordB: input.chordB || 'G',
-    bpm: Math.round(Math.min(200, Math.max(40, input.bpm ?? 80))),
-    beatsPerChord: nearest(input.beatsPerChord ?? 4, allowedBeats),
-    durationMinutes: nearest(input.durationMinutes ?? 1, allowedDurations),
+    bpm: Math.round(Math.min(200, Math.max(40, bpm))),
+    beatsPerChord: nearest(Number.isFinite(input.beatsPerChord) ? input.beatsPerChord! : 4, allowedBeats),
+    durationMinutes: nearest(Number.isFinite(input.durationMinutes) ? input.durationMinutes! : 1, allowedDurations),
   }
 }
 

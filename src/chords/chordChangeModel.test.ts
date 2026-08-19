@@ -17,4 +17,14 @@ describe('chord change training model', () => {
       durationMinutes: 5,
     })
   })
+
+  it('falls back to safe defaults for NaN inputs', () => {
+    expect(normalizeChordChangeConfig({ chordA: 'C', chordB: 'G', bpm: NaN, beatsPerChord: NaN, durationMinutes: NaN })).toEqual({
+      chordA: 'C',
+      chordB: 'G',
+      bpm: 80,
+      beatsPerChord: 4,
+      durationMinutes: 1,
+    })
+  })
 })
