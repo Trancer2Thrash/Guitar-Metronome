@@ -30,10 +30,10 @@ const raw: Array<[string,string,ChordCategory,Array<number|null>,Array<number|nu
 ]
 export const CHORDS = raw.map(args=>chord(...args))
 export const CHORD_CATEGORIES: ChordCategory[] = ['Major','Minor','7th','Sus / Add','Power']
-export function normalizeChordName(name:string):string { return name.trim().replace(/^([A-G])([#b♭]?)/,(_,l,a)=>l+(ENHARMONIC[a]??a)).replace('♯','#') }
+export function normalizeChordName(name:string):string { return name.trim().replace(/♯/g,'#').replace(/♭/g,'b') }
 const chordLookup = new Map<string,ChordDefinition>()
-CHORDS.forEach((item)=>{ chordLookup.set(normalizeChordName(item.id).replace('♭','b'),item); chordLookup.set(normalizeChordName(item.name).replace('♭','b'),item) })
-export function findChord(name:string):ChordDefinition|undefined { return chordLookup.get(normalizeChordName(name).replace('♭','b')) }
+CHORDS.forEach((item)=>{ chordLookup.set(normalizeChordName(item.id),item); chordLookup.set(normalizeChordName(item.name),item) })
+export function findChord(name:string):ChordDefinition|undefined { return chordLookup.get(normalizeChordName(name)) }
 export function transposeChordName(name:string,semitones:number):string { const ascii=name.replace('♯','#').replace('♭','b'); const m=ascii.match(/^([A-G](?:#|b)?)(.*)$/); if(!m)return name; const useSharps = prefersSharps(name); const root=useSharps ? (ENHARMONIC_SHARP[m[1]!]??m[1]!) : (ENHARMONIC[m[1]!]??m[1]!); const rootIndex = (useSharps ? ROOTS_SHARP : ROOTS).indexOf(root); if(rootIndex<0)return name; return (useSharps ? ROOTS_SHARP : ROOTS)[(rootIndex+semitones%12+12)%12]!+m[2]! }
 
 const GENERATED_INTERVALS: Array<[RegExp, number[]]> = [
