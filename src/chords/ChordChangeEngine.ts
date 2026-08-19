@@ -82,7 +82,7 @@ export class ChordChangeEngine {
   private tick() {
     if (!this.running || !this.context || !this.config || !this.callback) return
     const beatDuration = 60 / this.config.bpm
-    const totalBeats = Math.max(1, Math.round(this.config.durationMinutes * 60 * this.config.bpm / 60))
+    const totalBeats = Math.max(1, Math.round(this.config.durationMinutes * this.config.bpm))
     while (this.startTime + this.nextBeat * beatDuration < this.context.currentTime + 0.1 && this.nextBeat < totalBeats) {
       this.click(this.startTime + this.nextBeat * beatDuration, this.nextBeat % this.config.beatsPerChord === 0)
       this.nextBeat += 1

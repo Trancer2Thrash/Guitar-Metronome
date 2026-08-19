@@ -12,7 +12,6 @@ const ROOTS_SHARP = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯',
 const ENHARMONIC: Record<string,string> = { 'C#':'D♭','Db':'D♭','D#':'E♭','Eb':'E♭','E#':'F','Fb':'E','F#':'G♭','Gb':'G♭','G#':'A♭','Ab':'A♭','A#':'B♭','Bb':'B♭','B#':'C','Cb':'B' }
 const ENHARMONIC_SHARP: Record<string,string> = { 'Db':'C♯','C#':'C♯','Eb':'D♯','D#':'D♯','Fb':'E','E#':'F','Gb':'F♯','F#':'F♯','Ab':'G♯','G#':'G♯','Bb':'A♯','A#':'A♯','Cb':'B','B#':'C' }
 function prefersSharps(name: string): boolean { const ascii = name.replace('♯','#').replace('♭','b'); const m = ascii.match(/^([A-G](?:#|b)?)/); return m ? m[1]!.includes('#') : false }
-function prefersFlats(name: string): boolean { const ascii = name.replace('♯','#').replace('♭','b'); const m = ascii.match(/^([A-G](?:#|b)?)/); return m ? m[1]!.includes('b') : false }
 function noteNameFor(pitch: number, chordName: string): string { return prefersSharps(chordName) ? NOTE_NAMES_SHARP[pitch%12]! : NOTE_NAMES_FLAT[pitch%12]! }
 const qualityIntervals: Record<string,string[]> = { major:['1','3','5'], minor:['1','♭3','5'], seven:['1','3','5','♭7'], maj7:['1','3','5','7'], min7:['1','♭3','5','♭7'], sus:['1','4','5'], add:['1','3','5','9'], power:['1','5'] }
 function midiFor(frets: Array<number|null>) { return frets.map((fret,i)=>fret===null?null:OPEN_MIDI[i]!+fret) }
@@ -31,7 +30,7 @@ const raw: Array<[string,string,ChordCategory,Array<number|null>,Array<number|nu
 ]
 export const CHORDS = raw.map(args=>chord(...args))
 export const CHORD_CATEGORIES: ChordCategory[] = ['Major','Minor','7th','Sus / Add','Power']
-export function normalizeChordName(name:string):string { return name.trim().replace(/^([A-G])([#b♭]?)/,(_,l,a)=>l+(ENHARMONIC[a]??a)).replace('♭','♭').replace('♯','#') }
+export function normalizeChordName(name:string):string { return name.trim().replace(/^([A-G])([#b♭]?)/,(_,l,a)=>l+(ENHARMONIC[a]??a)).replace('♯','#') }
 const chordLookup = new Map<string,ChordDefinition>()
 CHORDS.forEach((item)=>{ chordLookup.set(normalizeChordName(item.id).replace('♭','b'),item); chordLookup.set(normalizeChordName(item.name).replace('♭','b'),item) })
 export function findChord(name:string):ChordDefinition|undefined { return chordLookup.get(normalizeChordName(name).replace('♭','b')) }
